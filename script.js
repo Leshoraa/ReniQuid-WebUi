@@ -18,6 +18,7 @@ uniform sampler2D u_tex;
 uniform vec2 u_texRes;
 uniform float u_time;
 uniform float u_headerY;
+uniform float u_headerWidth;
 
 out vec4 fragColor;
 
@@ -40,6 +41,12 @@ float smin(float a, float b, float k) {
     return mix(b, a, h) - k * h * (1.0 - h);
 }
 
+float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
+    vec3 pa = p - a, ba = b - a;
+    float h = clamp(dot(pa, ba) / max(dot(ba, ba), 0.0001), 0.0, 1.0);
+    return length(pa - ba * h) - r;
+}
+
 float map(vec3 p) {
     float surfaceNoise = noise(p * 2.0 + u_time * 0.5) * 0.03;
     float blobDist = 1000.0;
@@ -51,9 +58,12 @@ float map(vec3 p) {
         blobDist = (i == 0) ? dist : smin(blobDist, dist, 0.6);
     }
     
-    float wave = sin(p.x * 2.5 + u_time * 1.2) * 0.06 + cos(p.x * 1.5 - u_time * 0.8) * 0.04;
-    float headerRadius = 0.35;
-    float headerDist = length(vec2(p.y - u_headerY + wave, p.z)) - headerRadius + surfaceNoise;
+    float wave = sin(p.x * 2.5 + u_time * 1.2) * 0.015 + cos(p.x * 1.5 - u_time * 0.8) * 0.01;
+    vec3 pWarped = p;
+    pWarped.y -= wave;
+    vec3 capStart = vec3(-u_headerWidth, u_headerY, 0.0);
+    vec3 capEnd = vec3(u_headerWidth, u_headerY, 0.0);
+    float headerDist = sdCapsule(pWarped, capStart, capEnd, 0.1) + surfaceNoise * 0.5;
     
     return smin(blobDist, headerDist, 0.7);
 }
@@ -164,6 +174,7 @@ const uTexLoc = gl.getUniformLocation(program, "u_tex");
 const uTexResLoc = gl.getUniformLocation(program, "u_texRes");
 const uTimeLoc = gl.getUniformLocation(program, "u_time");
 const uHeaderYLoc = gl.getUniformLocation(program, "u_headerY");
+const uHeaderWidthLoc = gl.getUniformLocation(program, "u_headerWidth");
 
 const bgTexture = gl.createTexture();
 gl.bindTexture(gl.TEXTURE_2D, bgTexture);
@@ -268,12 +279,16 @@ function render(time) {
     let scrollY = window.scrollY || window.pageYOffset;
     let headerPixelY = 60 - scrollY;
     let mappedHeaderY = (((canvas.height - headerPixelY) - 0.5 * canvas.height) / canvas.height) * 3.0;
+    
+    let headerPixelWidth = Math.min(canvas.width * 0.9, 800);
+    let mappedHeaderHalfWidth = (headerPixelWidth * 0.5 / canvas.height) * 3.0;
 
     gl.useProgram(program);
     gl.uniform2f(uResolutionLoc, canvas.width, canvas.height);
     gl.uniform2fv(uPointsLoc, mappedPoints);
     gl.uniform1f(uTimeLoc, time * 0.001);
     gl.uniform1f(uHeaderYLoc, mappedHeaderY);
+    gl.uniform1f(uHeaderWidthLoc, mappedHeaderHalfWidth);
     
     if (imageLoaded) gl.uniform2f(uTexResLoc, bgImage.width, bgImage.height);
     

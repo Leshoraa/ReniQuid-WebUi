@@ -25,7 +25,10 @@ body, html {
 
 .site-header {
     position: relative;
-    height: 120px;
+    height: 60px;
+    margin: 30px auto 0 auto;
+    width: 90%;
+    max-width: 800px;
     display: flex;
     justify-content: space-between;
     align-items: center;
