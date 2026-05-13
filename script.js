@@ -276,8 +276,7 @@ function render(time) {
         mappedPoints[i*2+1] = (((canvas.height - points[i].y) - 0.5 * canvas.height) / canvas.height) * 3.0;
     }
 
-    let scrollY = window.scrollY || window.pageYOffset;
-    let headerPixelY = 60 - scrollY;
+    let headerPixelY = 60.0; // Header stays locked relative to viewport
     let mappedHeaderY = (((canvas.height - headerPixelY) - 0.5 * canvas.height) / canvas.height) * 3.0;
     
     let headerPixelWidth = Math.min(canvas.width * 0.9, 800);

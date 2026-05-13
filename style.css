@@ -24,9 +24,12 @@ body, html {
 }
 
 .site-header {
-    position: relative;
+    position: fixed;
+    top: 30px;
+    left: 0;
+    right: 0;
     height: 60px;
-    margin: 30px auto 0 auto;
+    margin: 0 auto;
     width: 90%;
     max-width: 800px;
     display: flex;
@@ -51,7 +54,7 @@ body, html {
 .content {
     position: relative;
     z-index: 10;
-    padding: 40px;
+    padding: 130px 40px 40px 40px;
     max-width: 800px;
     margin: 0 auto;
     min-height: 200vh;
