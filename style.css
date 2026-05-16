@@ -109,10 +109,14 @@ body {
 /* --- GAYA BARU UNTUK UI INTERAKTIF RENIQUID --- */
 .ui-components {
     display: flex;
+    flex-wrap: wrap;
     gap: 30px;
     justify-content: center;
     align-items: center;
     margin-top: 50px;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
     pointer-events: auto; /* Agar bisa di-klik di bawah kanvas */
 }
 
@@ -164,6 +168,66 @@ body {
 }
 .ui-switch.active .ui-knob {
     left: calc(100% - 32px);
+}
+
+/* --- Gaya Tambahan 6 Elemen UI --- */
+.ui-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.ui-label {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: rgba(255, 255, 255, 0.7);
+    pointer-events: none;
+}
+
+.ui-slider {
+    width: 180px;
+    height: 16px;
+    border: 3px solid rgba(255, 255, 255, 0.8);
+    border-radius: 16px;
+    position: relative;
+    cursor: pointer;
+}
+
+.ui-slider-knob {
+    width: 28px;
+    height: 28px;
+    background: #ffffff;
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    left: 20%;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+
+.ui-icon-btn {
+    width: 65px;
+    height: 65px;
+    border: 3px solid #ffffff;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #ffffff;
+    cursor: pointer;
+    background-color: transparent;
+    transition: all 0.3s ease;
+}
+
+.ui-icon-btn:hover {
+    background-color: #ffffff;
+    color: #000000;
 }
 
 #header-overlay {

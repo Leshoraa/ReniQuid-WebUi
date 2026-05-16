@@ -14,9 +14,9 @@ precision highp float;
 
 uniform vec2 u_resolution;
 uniform vec2 u_points[5];
-uniform vec2 u_capsulePos[3]; 
-uniform vec2 u_capsuleSize[3]; 
-uniform vec2 u_uiWaves;
+uniform vec2 u_capsulePos[5]; 
+uniform vec2 u_capsuleSize[5]; 
+uniform float u_uiWaves[4];
 uniform sampler2D u_tex;
 uniform sampler2D u_textTex; 
 uniform vec2 u_texRes;
@@ -68,7 +68,7 @@ float map(vec3 p) {
     
     float d_capsules = 1000.0;
     
-    for(int i = 0; i < 3; i++) {
+    for(int i = 0; i < 5; i++) {
         vec3 capsuleA = vec3(u_capsulePos[i].x - u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
         vec3 capsuleB = vec3(u_capsulePos[i].x + u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
         float capsuleDist = sdCapsule(p, capsuleA, capsuleB, u_capsuleSize[i].y);
@@ -76,7 +76,7 @@ float map(vec3 p) {
         if (i == 0) {
             capsuleDist += sin(p.x * 8.0 + u_time * 2.0) * 0.003;
         } else {
-            float waveAmp = (i == 1) ? u_uiWaves.x : u_uiWaves.y;
+            float waveAmp = u_uiWaves[i - 1];
             float distCenter = length(p.xy - u_capsulePos[i]);
             capsuleDist += sin(distCenter * 40.0 - u_time * 20.0) * 0.02 * waveAmp;
         }
@@ -118,7 +118,7 @@ vec3 getSceneColor(vec2 coord, vec2 resolution, vec2 texRes, float scrollY) {
     vec2 p2d = ((coord - 0.5 * resolution) / resolution.y) * 3.0;
     float d_capsules = 1000.0;
     
-    for(int i = 0; i < 3; i++) {
+    for(int i = 0; i < 5; i++) {
         vec2 capsuleA = vec2(u_capsulePos[i].x - u_capsuleSize[i].x, u_capsulePos[i].y);
         vec2 capsuleB = vec2(u_capsulePos[i].x + u_capsuleSize[i].x, u_capsulePos[i].y);
         float capsuleDist = sdCapsule2D(p2d, capsuleA, capsuleB, u_capsuleSize[i].y);
@@ -190,7 +190,7 @@ void main() {
         float d_header = 1000.0;
         float d_ui = 1000.0;
         
-        for(int i = 0; i < 3; i++) {
+        for(int i = 0; i < 5; i++) {
             vec3 capsuleA = vec3(u_capsulePos[i].x - u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
             vec3 capsuleB = vec3(u_capsulePos[i].x + u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
             float capsuleDist = sdCapsule(p, capsuleA, capsuleB, u_capsuleSize[i].y);
@@ -198,7 +198,7 @@ void main() {
             if (i == 0) {
                 d_header = capsuleDist + sin(p.x * 8.0 + u_time * 2.0) * 0.003;
             } else {
-                float waveAmp = (i == 1) ? u_uiWaves.x : u_uiWaves.y;
+                float waveAmp = u_uiWaves[i - 1];
                 float distCenter = length(p.xy - u_capsulePos[i]);
                 capsuleDist += sin(distCenter * 40.0 - u_time * 20.0) * 0.02 * waveAmp;
                 d_ui = (i == 1) ? capsuleDist : min(d_ui, capsuleDist);
@@ -295,8 +295,10 @@ const textCtx = textCanvas.getContext('2d');
 const textTexture = gl.createTexture();
 
 function updateDOMTextTexture() {
-    textCanvas.width = window.innerWidth;
-    textCanvas.height = window.innerHeight * 2;
+    if (textCanvas.width !== window.innerWidth || textCanvas.height !== window.innerHeight * 2) {
+        textCanvas.width = window.innerWidth;
+        textCanvas.height = window.innerHeight * 2;
+    }
     textCtx.clearRect(0, 0, textCanvas.width, textCanvas.height);
 
     const drawText = (id) => {
@@ -341,7 +343,27 @@ function updateDOMTextTexture() {
         textCtx.fill();
     };
 
-    const elementsToDraw = document.querySelectorAll('.welcome-title, .welcome-subtitle, .welcome-hint, #showcase-title, #showcase-sub');
+    const drawStroke = (id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        const x = rect.left;
+        const y = rect.top + window.scrollY;
+        const r = parseFloat(style.borderRadius) || 0;
+        textCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        textCtx.lineWidth = 3;
+        textCtx.beginPath();
+        if (textCtx.roundRect) {
+            textCtx.roundRect(x, y, rect.width, rect.height, r);
+        } else {
+            textCtx.rect(x, y, rect.width, rect.height);
+        }
+        textCtx.stroke();
+    };
+
+
+    const elementsToDraw = document.querySelectorAll('.welcome-title, .welcome-subtitle, .welcome-hint, #showcase-title, #showcase-sub, .ui-label');
     elementsToDraw.forEach(el => {
         if (el.id) drawText(el.id);
         else {
@@ -353,6 +375,9 @@ function updateDOMTextTexture() {
     drawUIBox('ui-btn', 50);
     drawUIBox('ui-switch', 40);
     drawCircle('ui-knob');
+    drawStroke('ui-slider');
+    drawCircle('ui-slider-knob');
+    drawUIBox('ui-icon-btn', 50);
 
     gl.bindTexture(gl.TEXTURE_2D, textTexture);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
@@ -366,14 +391,55 @@ document.fonts.ready.then(updateDOMTextTexture);
 
 const uiBtn = document.getElementById('ui-btn');
 const uiSwitch = document.getElementById('ui-switch');
+const uiSlider = document.getElementById('ui-slider');
+const uiIconBtn = document.getElementById('ui-icon-btn');
 
-let uiWaves = [0.0, 0.0];
+let uiWaves = new Float32Array(4);
 
-if (uiBtn) {
-    uiBtn.addEventListener('mouseenter', () => setTimeout(updateDOMTextTexture, 20));
-    uiBtn.addEventListener('mouseleave', () => setTimeout(updateDOMTextTexture, 20));
-    uiBtn.addEventListener('click', () => { uiWaves[0] = 1.0; });
+const addRipple = (el, index) => {
+    if (el) {
+        el.addEventListener('mouseenter', () => setTimeout(updateDOMTextTexture, 20));
+        el.addEventListener('mouseleave', () => setTimeout(updateDOMTextTexture, 20));
+        el.addEventListener('click', () => { uiWaves[index] = 1.0; });
+    }
+};
+
+addRipple(uiBtn, 0);
+addRipple(uiSlider, 2);
+addRipple(uiIconBtn, 3);
+
+let isPlaying = false;
+if (uiIconBtn) {
+    uiIconBtn.addEventListener('click', () => {
+        isPlaying = !isPlaying;
+        uiIconBtn.textContent = isPlaying ? '⏸' : '▶';
+        updateDOMTextTexture();
+    });
 }
+
+const uiSliderKnob = document.getElementById('ui-slider-knob');
+let sliderActive = false;
+
+if (uiSlider) {
+    uiSlider.addEventListener('pointerdown', (e) => {
+        sliderActive = true;
+        updateSlider(e);
+        uiWaves[2] = 1.0;
+    });
+    window.addEventListener('pointermove', (e) => {
+        if (sliderActive) updateSlider(e);
+    });
+    window.addEventListener('pointerup', () => { sliderActive = false; });
+}
+
+function updateSlider(e) {
+    const rect = uiSlider.getBoundingClientRect();
+    let percent = (e.clientX - rect.left) / rect.width;
+    percent = Math.max(0, Math.min(1, percent));
+    uiSliderKnob.style.left = `calc(${percent * 100}% - 14px)`;
+    updateDOMTextTexture();
+}
+
 
 let switchAnimFrame;
 const animateTextureUpdate = (startTime) => {
@@ -496,8 +562,8 @@ window.addEventListener('resize', resize);
 resize();
 
 const mappedPoints = new Float32Array(NUM_POINTS * 2);
-const capsuleDataPos = new Float32Array(6);
-const capsuleDataSize = new Float32Array(6);
+const capsuleDataPos = new Float32Array(10);
+const capsuleDataSize = new Float32Array(10);
 
 function renderLoop(time) {
     let now = performance.now();
@@ -520,9 +586,8 @@ function renderLoop(time) {
     gl.uniform1f(uTimeLoc, time * 0.001);
     gl.uniform1f(uScrollYLoc, currentScrollY);
 
-    uiWaves[0] *= 0.95;
-    uiWaves[1] *= 0.95;
-    gl.uniform2fv(uUiWavesLoc, uiWaves);
+    for(let w = 0; w < 4; w++) uiWaves[w] *= 0.95;
+    gl.uniform1fv(uUiWavesLoc, uiWaves);
 
     let capsuleWidth = 0.25 * canvas.width;
     let capsulePxX = 60.0 + capsuleWidth / 2.0;
@@ -538,7 +603,7 @@ function renderLoop(time) {
     capsuleDataSize[0] = mapCapsuleW * 1.0;
     capsuleDataSize[1] = mapCapsuleR;
 
-    const elements = [uiBtn, uiSwitch];
+    const elements = [uiBtn, uiSwitch, uiSlider, uiIconBtn];
     elements.forEach((el, idx) => {
         const i = idx + 1;
         if (el) {
