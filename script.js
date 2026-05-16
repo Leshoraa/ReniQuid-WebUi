@@ -14,8 +14,8 @@ precision highp float;
 
 uniform vec2 u_resolution;
 uniform vec2 u_points[5];
-uniform vec2 u_capsulePos[3]; // Diubah menjadi 3 untuk menampung Header + 2 UI
-uniform vec2 u_capsuleSize[3]; // Diubah menjadi 3
+uniform vec2 u_capsulePos[3]; 
+uniform vec2 u_capsuleSize[3]; 
 uniform sampler2D u_tex;
 uniform sampler2D u_textTex; 
 uniform vec2 u_texRes;
@@ -68,7 +68,6 @@ float map(vec3 p) {
     float d_capsules = 1000.0;
     float elementWave = sin(p.x * 8.0 + u_time * 2.0) * 0.003;
     
-    // Loop disesuaikan menjadi 3 elemen kapsul
     for(int i = 0; i < 3; i++) {
         vec3 capsuleA = vec3(u_capsulePos[i].x - u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
         vec3 capsuleB = vec3(u_capsulePos[i].x + u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
@@ -110,7 +109,6 @@ vec3 getSceneColor(vec2 coord, vec2 resolution, vec2 texRes, float scrollY) {
     vec2 p2d = ((coord - 0.5 * resolution) / resolution.y) * 3.0;
     float d_capsules = 1000.0;
     
-    // Loop disesuaikan menjadi 3 elemen kapsul
     for(int i = 0; i < 3; i++) {
         vec2 capsuleA = vec2(u_capsulePos[i].x - u_capsuleSize[i].x, u_capsulePos[i].y);
         vec2 capsuleB = vec2(u_capsulePos[i].x + u_capsuleSize[i].x, u_capsulePos[i].y);
@@ -183,7 +181,6 @@ void main() {
         float d_capsules = 1000.0;
         float elementWave = sin(p.x * 8.0 + u_time * 2.0) * 0.003;
         
-        // Loop disesuaikan menjadi 3 elemen kapsul
         for(int i = 0; i < 3; i++) {
             vec3 capsuleA = vec3(u_capsulePos[i].x - u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
             vec3 capsuleB = vec3(u_capsulePos[i].x + u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
@@ -386,18 +383,39 @@ const targetPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 let isDragging = false;
 const updateTarget = (x, y) => { targetPos.x = x; targetPos.y = y; };
 
-window.addEventListener('pointerdown', (e) => { isDragging = true; updateTarget(e.clientX, e.clientY); });
+// --- MODIFIKASI KONTROL INPUT (Hanya aktif jika klik dekat bola utama cairan) ---
+const DRAG_RADIUS = 130; // Batas radius (dalam piksel) untuk bisa mulai menyeret bola cairan
+
+window.addEventListener('pointerdown', (e) => {
+    const dx = e.clientX - points[0].x;
+    const dy = e.clientY - points[0].y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance < DRAG_RADIUS) { 
+        isDragging = true; 
+        updateTarget(e.clientX, e.clientY); 
+    }
+});
 window.addEventListener('pointermove', (e) => { if (isDragging) updateTarget(e.clientX, e.clientY); });
 window.addEventListener('pointerup', () => isDragging = false);
 window.addEventListener('pointerleave', () => isDragging = false);
 
 window.addEventListener('touchstart', (e) => {
-    isDragging = true; updateTarget(e.touches[0].clientX, e.touches[0].clientY);
+    const touch = e.touches[0];
+    const dx = touch.clientX - points[0].x;
+    const dy = touch.clientY - points[0].y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance < DRAG_RADIUS) {
+        isDragging = true; 
+        updateTarget(touch.clientX, touch.clientY);
+    }
 }, { passive: true });
 window.addEventListener('touchmove', (e) => {
     if (isDragging) updateTarget(e.touches[0].clientX, e.touches[0].clientY);
 }, { passive: true });
 window.addEventListener('touchend', () => isDragging = false);
+// ---------------------------------------------------------------------------------
 
 const keysPressed = {};
 window.addEventListener('keydown', (e) => {
@@ -457,8 +475,8 @@ window.addEventListener('resize', resize);
 resize();
 
 const mappedPoints = new Float32Array(NUM_POINTS * 2);
-const capsuleDataPos = new Float32Array(6); // Diperluas ke 6 (3 Kapsul * 2)
-const capsuleDataSize = new Float32Array(6); // Diperluas ke 6
+const capsuleDataPos = new Float32Array(6); 
+const capsuleDataSize = new Float32Array(6); 
 
 function renderLoop(time) {
     let now = performance.now();
@@ -481,7 +499,6 @@ function renderLoop(time) {
     gl.uniform1f(uTimeLoc, time * 0.001);
     gl.uniform1f(uScrollYLoc, currentScrollY);
 
-    // --- SEGMEN 1: KALKULASI KAPSUL LIQUID HEADER (Di simpan pada Indeks 0) ---
     let capsuleWidth = 0.25 * canvas.width;
     let capsulePxX = 60.0 + capsuleWidth / 2.0;
     let capsulePxY = 60.0;
@@ -491,16 +508,14 @@ function renderLoop(time) {
     let mapCapsuleW = (capsuleWidth / canvas.height) * 3.0;
     let mapCapsuleR = (34.0 / canvas.height) * 3.0;
 
-    // Menyelaraskan struktur offset tengah kapsul agar seragam dengan metode hitung DOM
     capsuleDataPos[0] = mapCapsuleX + mapCapsuleW * 0.6;
     capsuleDataPos[1] = mapCapsuleY;
     capsuleDataSize[0] = mapCapsuleW * 1.0;
     capsuleDataSize[1] = mapCapsuleR;
 
-    // --- SEGMEN 2: KALKULASI KAPSUL ELEMEN UI DOM (Di simpan pada Indeks 1 & 2) ---
     const elements = [uiBtn, uiSwitch];
     elements.forEach((el, idx) => {
-        const i = idx + 1; // Mulai dari indeks uniform ke-1 setelah Header
+        const i = idx + 1; 
         if (el) {
             const rect = el.getBoundingClientRect();
             const cx = ((rect.left + rect.width / 2) - 0.5 * canvas.width) / canvas.height * 3.0;
