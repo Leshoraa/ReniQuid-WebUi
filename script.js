@@ -16,6 +16,7 @@ uniform vec2 u_resolution;
 uniform vec2 u_points[5];
 uniform vec2 u_capsulePos[3]; 
 uniform vec2 u_capsuleSize[3]; 
+uniform vec2 u_uiWaves;
 uniform sampler2D u_tex;
 uniform sampler2D u_textTex; 
 uniform vec2 u_texRes;
@@ -66,12 +67,20 @@ float map(vec3 p) {
     }
     
     float d_capsules = 1000.0;
-    float elementWave = sin(p.x * 8.0 + u_time * 2.0) * 0.003;
     
     for(int i = 0; i < 3; i++) {
         vec3 capsuleA = vec3(u_capsulePos[i].x - u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
         vec3 capsuleB = vec3(u_capsulePos[i].x + u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
-        float capsuleDist = sdCapsule(p, capsuleA, capsuleB, u_capsuleSize[i].y) + elementWave;
+        float capsuleDist = sdCapsule(p, capsuleA, capsuleB, u_capsuleSize[i].y);
+        
+        if (i == 0) {
+            capsuleDist += sin(p.x * 8.0 + u_time * 2.0) * 0.003;
+        } else {
+            float waveAmp = (i == 1) ? u_uiWaves.x : u_uiWaves.y;
+            float distCenter = length(p.xy - u_capsulePos[i]);
+            capsuleDist += sin(distCenter * 40.0 - u_time * 20.0) * 0.02 * waveAmp;
+        }
+        
         d_capsules = (i == 0) ? capsuleDist : min(d_capsules, capsuleDist);
     }
     
@@ -180,14 +189,20 @@ void main() {
         
         float d_header = 1000.0;
         float d_ui = 1000.0;
-        float elementWave = sin(p.x * 8.0 + u_time * 2.0) * 0.003;
         
         for(int i = 0; i < 3; i++) {
             vec3 capsuleA = vec3(u_capsulePos[i].x - u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
             vec3 capsuleB = vec3(u_capsulePos[i].x + u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
-            float capsuleDist = sdCapsule(p, capsuleA, capsuleB, u_capsuleSize[i].y) + elementWave;
-            if (i == 0) d_header = capsuleDist;
-            else d_ui = (i == 1) ? capsuleDist : min(d_ui, capsuleDist);
+            float capsuleDist = sdCapsule(p, capsuleA, capsuleB, u_capsuleSize[i].y);
+            
+            if (i == 0) {
+                d_header = capsuleDist + sin(p.x * 8.0 + u_time * 2.0) * 0.003;
+            } else {
+                float waveAmp = (i == 1) ? u_uiWaves.x : u_uiWaves.y;
+                float distCenter = length(p.xy - u_capsulePos[i]);
+                capsuleDist += sin(distCenter * 40.0 - u_time * 20.0) * 0.02 * waveAmp;
+                d_ui = (i == 1) ? capsuleDist : min(d_ui, capsuleDist);
+            }
         }
         
         if (min(d_trail, d_header) < d_ui) {
@@ -257,6 +272,7 @@ const uTextTexLoc = gl.getUniformLocation(program, "u_textTex");
 const uTexResLoc = gl.getUniformLocation(program, "u_texRes");
 const uTimeLoc = gl.getUniformLocation(program, "u_time");
 const uScrollYLoc = gl.getUniformLocation(program, "u_scrollY");
+const uUiWavesLoc = gl.getUniformLocation(program, "u_uiWaves");
 
 const bgTexture = gl.createTexture();
 gl.bindTexture(gl.TEXTURE_2D, bgTexture);
@@ -352,9 +368,12 @@ document.fonts.ready.then(updateDOMTextTexture);
 const uiBtn = document.getElementById('ui-btn');
 const uiSwitch = document.getElementById('ui-switch');
 
+let uiWaves = [0.0, 0.0];
+
 if (uiBtn) {
     uiBtn.addEventListener('mouseenter', () => setTimeout(updateDOMTextTexture, 20));
     uiBtn.addEventListener('mouseleave', () => setTimeout(updateDOMTextTexture, 20));
+    uiBtn.addEventListener('click', () => { uiWaves[0] = 1.0; });
 }
 
 let switchAnimFrame;
@@ -367,6 +386,7 @@ const animateTextureUpdate = (startTime) => {
 
 if (uiSwitch) {
     uiSwitch.addEventListener('click', () => {
+        uiWaves[1] = 1.0;
         uiSwitch.classList.toggle('active');
         cancelAnimationFrame(switchAnimFrame);
         animateTextureUpdate(performance.now());
@@ -500,6 +520,10 @@ function renderLoop(time) {
     gl.uniform2fv(uPointsLoc, mappedPoints);
     gl.uniform1f(uTimeLoc, time * 0.001);
     gl.uniform1f(uScrollYLoc, currentScrollY);
+
+    uiWaves[0] *= 0.95;
+    uiWaves[1] *= 0.95;
+    gl.uniform2fv(uUiWavesLoc, uiWaves);
 
     let capsuleWidth = 0.25 * canvas.width;
     let capsulePxX = 60.0 + capsuleWidth / 2.0;
