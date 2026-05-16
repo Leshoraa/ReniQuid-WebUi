@@ -1,5 +1,5 @@
 const canvas = document.getElementById('glcanvas');
-const gl = canvas.getContext('webgl2');
+const gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: false });
 
 if (!gl) throw new Error("WebGL 2.0 not supported");
 
@@ -17,24 +17,15 @@ uniform vec2 u_points[5];
 uniform vec2 u_capsulePos;
 uniform vec2 u_capsuleSize;
 uniform sampler2D u_tex;
+uniform sampler2D u_textTex; 
 uniform vec2 u_texRes;
 uniform float u_time;
 uniform float u_scrollY;
 
 out vec4 fragColor;
 
-float hash(float n) { return fract(sin(n) * 1e4); }
-
-float noise(vec3 x) {
-    const vec3 step = vec3(110, 241, 171);
-    vec3 i = floor(x);
-    vec3 f = fract(x);
-    float n = dot(i, step);
-    vec3 u = f * f * (3.0 - 2.0 * f);
-    return mix(mix(mix(hash(n + dot(step, vec3(0, 0, 0))), hash(n + dot(step, vec3(1, 0, 0))), u.x),
-                   mix(hash(n + dot(step, vec3(0, 1, 0))), hash(n + dot(step, vec3(1, 1, 0))), u.x), u.y),
-               mix(mix(hash(n + dot(step, vec3(0, 0, 1))), hash(n + dot(step, vec3(1, 0, 1))), u.x),
-                   mix(hash(n + dot(step, vec3(0, 1, 1))), hash(n + dot(step, vec3(1, 1, 1))), u.x), u.y), u.z);
+float cheapFluidWave(vec3 p) {
+    return (sin(p.x * 4.0 + u_time) * cos(p.y * 4.0 - u_time) * sin(p.z * 4.0)) * 0.02;
 }
 
 float smin(float a, float b, float k) {
@@ -49,7 +40,7 @@ float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
 }
 
 float map(vec3 p) {
-    float surfaceNoise = noise(p * 2.0 + u_time * 0.5) * 0.03;
+    float surfaceNoise = cheapFluidWave(p * 2.0);
     float d = 1000.0;
     
     for(int i = 0; i < 5; i++) {
@@ -61,8 +52,7 @@ float map(vec3 p) {
     
     vec3 capsuleA = vec3(u_capsulePos.x - u_capsuleSize.x * 0.4, u_capsulePos.y, 0.0);
     vec3 capsuleB = vec3(u_capsulePos.x + u_capsuleSize.x * 1.6, u_capsulePos.y, 0.0);
-    float flowWave = sin(p.x * 10.0 - u_time * 4.0) * 0.001;
-    float capsuleDist = sdCapsule(p, capsuleA, capsuleB, u_capsuleSize.y) + surfaceNoise + flowWave;
+    float capsuleDist = sdCapsule(p, capsuleA, capsuleB, u_capsuleSize.y) + surfaceNoise;
     d = smin(d, capsuleDist, 0.6);
     
     return d;
@@ -86,16 +76,21 @@ vec2 getCoverUV(vec2 fragCoord, vec2 resolution, vec2 texResolution) {
     return (fragCoord / resolution) * (resolution / newSize) + offset;
 }
 
-// Menentukan apakah pixel ini bagian gambar hero atau halaman putih showcase
-vec3 getBackground(vec2 fragCoord, vec2 resolution, vec2 texRes) {
-    // fragCoord.y berjalan dari 0 (bawah) ke Atas
-    // Jika kita scroll layar ke bawah, area putih (showcase) ikut naik
-    if (fragCoord.y <= u_scrollY) {
-        return vec3(1.0); // Tampilkan background warna putih polos (area showcase)
+vec3 getBackground(vec2 fragCoord, vec2 resolution, vec2 texRes, float scrollY) {
+    float docY_fromTop = scrollY + (resolution.y - fragCoord.y);
+    vec3 baseColor;
+    
+    if (docY_fromTop > resolution.y) {
+        vec2 bgCoord = vec2(fragCoord.x, resolution.y - (docY_fromTop - resolution.y));
+        baseColor = texture(u_tex, getCoverUV(bgCoord, resolution, texRes)).rgb;
+    } else {
+        baseColor = vec3(0.95); 
     }
-    // Jika masih di area hero image, kurangi koordinat dengan scrollY untuk efek offset scroll
-    vec2 p_hero = vec2(fragCoord.x, fragCoord.y - u_scrollY);
-    return texture(u_tex, getCoverUV(p_hero, resolution, texRes)).rgb;
+    
+    vec2 docUV = vec2(fragCoord.x / resolution.x, 1.0 - (docY_fromTop / (resolution.y * 2.0)));
+    vec4 textData = texture(u_textTex, docUV);
+    
+    return mix(baseColor, textData.rgb, textData.a);
 }
 
 vec3 calcRefraction(vec3 rd, vec3 n, vec2 fragCoord, vec2 resolution, vec2 texRes) {
@@ -105,17 +100,15 @@ vec3 calcRefraction(vec3 rd, vec3 n, vec2 fragCoord, vec2 resolution, vec2 texRe
     
     float strength = 0.12 * resolution.y;
     
-    // Menerapkan distorsi ke warna background dinamis (Gambar Hero atau Area Putih)
-    vec3 colR = getBackground(fragCoord + (refR.xy - rd.xy) * strength, resolution, texRes);
-    vec3 colG = getBackground(fragCoord + (refG.xy - rd.xy) * strength, resolution, texRes);
-    vec3 colB = getBackground(fragCoord + (refB.xy - rd.xy) * strength, resolution, texRes);
+    vec3 colR = getBackground(fragCoord + (refR.xy - rd.xy) * strength, resolution, texRes, u_scrollY);
+    vec3 colG = getBackground(fragCoord + (refG.xy - rd.xy) * strength, resolution, texRes, u_scrollY);
+    vec3 colB = getBackground(fragCoord + (refB.xy - rd.xy) * strength, resolution, texRes, u_scrollY);
     
     return vec3(colR.r, colG.g, colB.b);
 }
 
 void main() {
     vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
-    
     vec3 ro = vec3(0.0, 0.0, 3.0);
     vec3 rd = normalize(vec3(uv, -1.0));
     
@@ -126,7 +119,7 @@ void main() {
     float maxD = 10.0;
     vec3 p;
     
-    for(int i = 0; i < 60; i++) {
+    for(int i = 0; i < 40; i++) {
         p = ro + rd * t;
         float d = map(p);
         if(d < 0.001 || t > maxD) break;
@@ -134,31 +127,27 @@ void main() {
     }
     
     vec2 texRes = u_texRes.x > 0.0 ? u_texRes : vec2(1.0);
-    vec3 col = getBackground(gl_FragCoord.xy, u_resolution.xy, texRes) * shadowAlpha; 
+    vec3 bgCol = getBackground(gl_FragCoord.xy, u_resolution.xy, texRes, u_scrollY) * shadowAlpha;
     
     if(t < maxD) {
         vec3 n = calcNormal(p);
         vec3 l = normalize(vec3(1.0, 1.5, 2.0)); 
         
         vec3 refrCol = calcRefraction(rd, n, gl_FragCoord.xy, u_resolution.xy, texRes);
-        float edge = pow(1.0 - max(dot(n, -rd), 0.0), 3.0);
-        
-        col = mix(refrCol, vec3(0.9, 0.95, 1.0), edge * 0.2);
+        vec3 col = refrCol;
         col += vec3(1.0) * pow(max(dot(n, normalize(-rd + l)), 0.0), 800.0) * 1.5;
+        
+        fragColor = vec4(col, 1.0); 
+    } else {
+        fragColor = vec4(bgCol, 1.0);
     }
-    
-    fragColor = vec4(col, 1.0);
 }`;
 
 function createShader(gl, type, source) {
     const shader = gl.createShader(type);
     gl.shaderSource(shader, source);
     gl.compileShader(shader);
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        console.error(gl.getShaderInfoLog(shader));
-        gl.deleteShader(shader);
-        return null;
-    }
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return null;
     return shader;
 }
 
@@ -172,10 +161,7 @@ gl.linkProgram(program);
 
 const positionBuffer = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-    -1, -1, 1, -1, -1, 1,
-    -1, 1, 1, -1, 1, 1
-]), gl.STATIC_DRAW);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
 
 const positionLocation = gl.getAttribLocation(program, "a_position");
 gl.enableVertexAttribArray(positionLocation);
@@ -186,6 +172,7 @@ const uPointsLoc = gl.getUniformLocation(program, "u_points");
 const uCapsulePosLoc = gl.getUniformLocation(program, "u_capsulePos");
 const uCapsuleSizeLoc = gl.getUniformLocation(program, "u_capsuleSize");
 const uTexLoc = gl.getUniformLocation(program, "u_tex");
+const uTextTexLoc = gl.getUniformLocation(program, "u_textTex");
 const uTexResLoc = gl.getUniformLocation(program, "u_texRes");
 const uTimeLoc = gl.getUniformLocation(program, "u_time");
 const uScrollYLoc = gl.getUniformLocation(program, "u_scrollY");
@@ -207,6 +194,121 @@ bgImage.onload = () => {
     imageLoaded = true;
 };
 
+const textCanvas = document.createElement('canvas');
+const textCtx = textCanvas.getContext('2d');
+const textTexture = gl.createTexture();
+
+function updateDOMTextTexture() {
+    textCanvas.width = window.innerWidth;
+    textCanvas.height = window.innerHeight * 2;
+    textCtx.clearRect(0, 0, textCanvas.width, textCanvas.height);
+    
+    const drawText = (id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        textCtx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        textCtx.fillStyle = style.color;
+        textCtx.textAlign = 'center';
+        textCtx.textBaseline = 'middle';
+        textCtx.fillText(el.textContent, rect.left + rect.width / 2, rect.top + window.scrollY + rect.height / 2);
+    };
+
+    const drawUIBox = (id, radius) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        const x = rect.left;
+        const y = rect.top + window.scrollY;
+
+        const bgColor = style.backgroundColor;
+        const isFilled = bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent';
+
+        textCtx.strokeStyle = style.borderColor || '#ffffff';
+        textCtx.lineWidth = 2;
+        textCtx.beginPath();
+        textCtx.roundRect(x, y, rect.width, rect.height, radius);
+        
+        if (isFilled) {
+            textCtx.fillStyle = bgColor;
+            textCtx.fill();
+        } else {
+            textCtx.stroke();
+        }
+
+        if (el.textContent.trim()) {
+            textCtx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+            textCtx.fillStyle = style.color;
+            textCtx.textAlign = 'center';
+            textCtx.textBaseline = 'middle';
+            textCtx.fillText(el.textContent.trim(), x + rect.width / 2, y + rect.height / 2);
+        }
+    };
+
+    const drawCircle = (id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + window.scrollY + rect.height / 2;
+        
+        textCtx.fillStyle = style.backgroundColor || '#ffffff';
+        textCtx.beginPath();
+        textCtx.arc(x, y, rect.width / 2, 0, Math.PI * 2);
+        textCtx.fill();
+    };
+
+    // Render Text dan Elemen
+    const elementsToDraw = document.querySelectorAll('.header-title, .header-link, .welcome-title, .welcome-subtitle, .welcome-hint, #showcase-title, #showcase-sub');
+    elementsToDraw.forEach(el => {
+        if(el.id) drawText(el.id);
+        else {
+            el.id = 'temp-id-' + Math.random().toString(36).substr(2, 9);
+            drawText(el.id);
+        }
+    });
+    
+    drawUIBox('ui-btn', 50);
+    drawUIBox('ui-switch', 40);
+    drawCircle('ui-knob');
+    
+    gl.bindTexture(gl.TEXTURE_2D, textTexture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, textCanvas);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+}
+
+document.fonts.ready.then(updateDOMTextTexture);
+
+const uiBtn = document.getElementById('ui-btn');
+const uiSwitch = document.getElementById('ui-switch');
+
+if (uiBtn) {
+    uiBtn.addEventListener('mouseenter', () => setTimeout(updateDOMTextTexture, 20));
+    uiBtn.addEventListener('mouseleave', () => setTimeout(updateDOMTextTexture, 20));
+}
+
+let switchAnimFrame;
+const animateTextureUpdate = (startTime) => {
+    updateDOMTextTexture();
+    if (performance.now() - startTime < 350) {
+        switchAnimFrame = requestAnimationFrame(() => animateTextureUpdate(startTime));
+    }
+};
+
+if (uiSwitch) {
+    uiSwitch.addEventListener('click', () => {
+        uiSwitch.classList.toggle('active');
+        cancelAnimationFrame(switchAnimFrame);
+        animateTextureUpdate(performance.now());
+    });
+}
+
 const NUM_POINTS = 5;
 const points = Array.from({ length: NUM_POINTS }, () => ({
     x: window.innerWidth / 2,
@@ -217,7 +319,6 @@ const points = Array.from({ length: NUM_POINTS }, () => ({
 
 const targetPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 let isDragging = false;
-
 const updateTarget = (x, y) => { targetPos.x = x; targetPos.y = y; };
 
 window.addEventListener('pointerdown', (e) => { isDragging = true; updateTarget(e.clientX, e.clientY); });
@@ -226,22 +327,18 @@ window.addEventListener('pointerup', () => isDragging = false);
 window.addEventListener('pointerleave', () => isDragging = false);
 
 window.addEventListener('touchstart', (e) => {
-    isDragging = true;
-    updateTarget(e.touches[0].clientX, e.touches[0].clientY);
+    isDragging = true; updateTarget(e.touches[0].clientX, e.touches[0].clientY);
 }, { passive: true });
-// e.preventDefault dihapus agar user tetap bisa men-scroll page saat drag di mobile
 window.addEventListener('touchmove', (e) => {
-    if (isDragging) { updateTarget(e.touches[0].clientX, e.touches[0].clientY); }
-}, { passive: true }); 
+    if (isDragging) updateTarget(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: true });
 window.addEventListener('touchend', () => isDragging = false);
 
-// Setup scroll tracking
 let currentScrollY = window.scrollY;
 window.addEventListener('scroll', () => { currentScrollY = window.scrollY; });
 
 const K_ANCHOR = 200.0, M_ANCHOR = 1.0, C_ANCHOR = 2.0 * Math.sqrt(K_ANCHOR * M_ANCHOR);
 const K_TAIL = 300.0, M_TAIL = 1.0, C_TAIL = 2.0 * Math.sqrt(K_TAIL * M_TAIL);
-
 let lastTime = performance.now();
 
 function updatePhysics(dt) {
@@ -277,13 +374,14 @@ function resize() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     gl.viewport(0, 0, canvas.width, canvas.height);
+    updateDOMTextTexture(); 
 }
 window.addEventListener('resize', resize);
 resize();
 
 const mappedPoints = new Float32Array(NUM_POINTS * 2);
 
-function render(time) {
+function renderLoop(time) {
     let now = performance.now();
     let dt = (now - lastTime) / 1000.0;
     lastTime = now;
@@ -295,13 +393,14 @@ function render(time) {
         mappedPoints[i * 2 + 1] = (((canvas.height - points[i].y) - 0.5 * canvas.height) / canvas.height) * 3.0;
     }
 
+    gl.clearColor(0.0, 0.0, 0.0, 0.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
     gl.useProgram(program);
     gl.uniform2f(uResolutionLoc, canvas.width, canvas.height);
     gl.uniform2fv(uPointsLoc, mappedPoints);
     gl.uniform1f(uTimeLoc, time * 0.001);
-    
-    // Pass scroll uniform ke shader untuk mentransisikan background texture / warna putih
-    gl.uniform1f(uScrollYLoc, currentScrollY); 
+    gl.uniform1f(uScrollYLoc, currentScrollY);
 
     let capsuleWidth = 0.25 * canvas.width;
     let capsulePxX = 60.0 + capsuleWidth / 2.0;
@@ -321,7 +420,11 @@ function render(time) {
     gl.bindTexture(gl.TEXTURE_2D, bgTexture);
     gl.uniform1i(uTexLoc, 0);
 
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, textTexture);
+    gl.uniform1i(uTextTexLoc, 1);
+
     gl.drawArrays(gl.TRIANGLES, 0, 6);
-    requestAnimationFrame(render);
+    requestAnimationFrame(renderLoop);
 }
-requestAnimationFrame(render);
+requestAnimationFrame(renderLoop);

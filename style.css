@@ -6,16 +6,26 @@
 
 html {
     scroll-behavior: smooth;
-    /* Jangan tambahkan overflow-x: hidden di sini agar scroll mouse tidak mati */
+    overscroll-behavior: none; 
+    background-color: #f2f2f2; 
 }
 
 body {
     width: 100%;
     margin: 0;
     padding: 0;
-    overflow-x: hidden; /* Cukup aplikasikan di body saja */
-    background-color: #050505;
-    /* overscroll-behavior: none; dihapus agar tidak nge-bug di mousewheel */
+    overflow-x: hidden;
+    overscroll-behavior: none; 
+    background-color: #050505; 
+}
+
+::selection {
+    background: rgba(255, 255, 255, 0.4);
+    color: inherit; 
+}
+::-moz-selection {
+    background: rgba(255, 255, 255, 0.4);
+    color: inherit; 
 }
 
 #glcanvas {
@@ -25,8 +35,9 @@ body {
     position: fixed;
     top: 0;
     left: 0;
-    z-index: 0;
-    pointer-events: none; /* Membiarkan klik/scroll tembus ke bawahnya */
+    z-index: 10; 
+    pointer-events: none; 
+    background: transparent;
 }
 
 #hero-section {
@@ -34,12 +45,44 @@ body {
     height: 100vh;
     position: relative;
     z-index: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: #f2f2f2; 
+}
+
+.welcome-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 5rem;
+    font-weight: 800;
+    letter-spacing: 8px;
+    color: #050505;
+    margin-bottom: 10px;
+}
+.welcome-subtitle {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 300;
+    letter-spacing: 4px;
+    color: #444444;
+}
+.welcome-hint {
+    position: absolute;
+    bottom: 40px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: 3px;
+    color: #888888;
 }
 
 #content-section {
     width: 100%;
-    min-height: 100vh;
-    background-color: transparent; /* Harus transparan agar putih dari WebGL terlihat */
+    height: 100vh;
+    background-image: url('bg.jpg');
+    background-size: cover;
+    background-position: center;
     position: relative;
     z-index: 2;
     display: flex;
@@ -50,19 +93,77 @@ body {
 .showcase-content {
     text-align: center;
     font-family: 'Outfit', sans-serif;
-    color: #050505;
+    color: #ffffff;
 }
-
 .showcase-content h2 {
-    font-size: 3rem;
+    font-size: 4rem;
     font-weight: 800;
-    letter-spacing: 4px;
+    letter-spacing: 6px;
     margin-bottom: 1rem;
 }
-
 .showcase-content p {
     font-size: 1.2rem;
     font-weight: 300;
+}
+
+/* --- GAYA BARU UNTUK UI INTERAKTIF RENIQUID --- */
+.ui-components {
+    display: flex;
+    gap: 30px;
+    justify-content: center;
+    align-items: center;
+    margin-top: 50px;
+    pointer-events: auto; /* Agar bisa di-klik di bawah kanvas */
+}
+
+.ui-btn {
+    padding: 16px 45px;
+    border: 2px solid #ffffff;
+    border-radius: 50px;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 4px;
+    color: #ffffff;
+    cursor: pointer;
+    background-color: transparent;
+    transition: all 0.3s ease;
+}
+
+/* Efek Hover: Berubah putih dan teks hitam */
+.ui-btn:hover {
+    background-color: #ffffff;
+    color: #000000;
+}
+
+.ui-switch {
+    width: 80px;
+    height: 40px;
+    border: 2px solid #ffffff;
+    border-radius: 40px;
+    position: relative;
+    cursor: pointer;
+    background-color: transparent;
+    transition: background-color 0.3s ease;
+}
+
+.ui-knob {
+    width: 26px;
+    height: 26px;
+    background: #ffffff;
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    left: 6px;
+    transform: translateY(-50%);
+    transition: left 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Saat Switch di-klik / Aktif */
+.ui-switch.active {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+.ui-switch.active .ui-knob {
+    left: calc(100% - 32px);
 }
 
 #header-overlay {
