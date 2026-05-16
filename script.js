@@ -17,6 +17,7 @@ uniform vec2 u_points[5];
 uniform vec2 u_capsulePos[3]; 
 uniform vec2 u_capsuleSize[3]; 
 uniform vec2 u_uiWaves;
+uniform vec2 u_uiWavePos[2];
 uniform sampler2D u_tex;
 uniform sampler2D u_textTex; 
 uniform vec2 u_texRes;
@@ -77,7 +78,8 @@ float map(vec3 p) {
             capsuleDist += sin(p.x * 8.0 + u_time * 2.0) * 0.003;
         } else {
             float waveAmp = (i == 1) ? u_uiWaves.x : u_uiWaves.y;
-            float distCenter = length(p.xy - u_capsulePos[i]);
+            vec2 waveCenter = (i == 1) ? u_uiWavePos[0] : u_uiWavePos[1];
+            float distCenter = length(p.xy - waveCenter);
             capsuleDist += sin(distCenter * 40.0 - u_time * 20.0) * 0.02 * waveAmp;
         }
         
@@ -199,7 +201,8 @@ void main() {
                 d_header = capsuleDist + sin(p.x * 8.0 + u_time * 2.0) * 0.003;
             } else {
                 float waveAmp = (i == 1) ? u_uiWaves.x : u_uiWaves.y;
-                float distCenter = length(p.xy - u_capsulePos[i]);
+                vec2 waveCenter = (i == 1) ? u_uiWavePos[0] : u_uiWavePos[1];
+                float distCenter = length(p.xy - waveCenter);
                 capsuleDist += sin(distCenter * 40.0 - u_time * 20.0) * 0.02 * waveAmp;
                 d_ui = (i == 1) ? capsuleDist : min(d_ui, capsuleDist);
             }
@@ -273,6 +276,7 @@ const uTexResLoc = gl.getUniformLocation(program, "u_texRes");
 const uTimeLoc = gl.getUniformLocation(program, "u_time");
 const uScrollYLoc = gl.getUniformLocation(program, "u_scrollY");
 const uUiWavesLoc = gl.getUniformLocation(program, "u_uiWaves");
+const uUiWavePosLoc = gl.getUniformLocation(program, "u_uiWavePos");
 
 const bgTexture = gl.createTexture();
 gl.bindTexture(gl.TEXTURE_2D, bgTexture);
@@ -369,11 +373,16 @@ const uiBtn = document.getElementById('ui-btn');
 const uiSwitch = document.getElementById('ui-switch');
 
 let uiWaves = [0.0, 0.0];
+let uiWavePos = new Float32Array(4);
 
 if (uiBtn) {
     uiBtn.addEventListener('mouseenter', () => setTimeout(updateDOMTextTexture, 20));
     uiBtn.addEventListener('mouseleave', () => setTimeout(updateDOMTextTexture, 20));
-    uiBtn.addEventListener('click', () => { uiWaves[0] = 1.0; });
+    uiBtn.addEventListener('click', (e) => { 
+        uiWaves[0] = 1.0; 
+        uiWavePos[0] = ((e.clientX) - 0.5 * canvas.width) / canvas.height * 3.0;
+        uiWavePos[1] = (((canvas.height - e.clientY)) - 0.5 * canvas.height) / canvas.height * 3.0;
+    });
 }
 
 let switchAnimFrame;
@@ -385,8 +394,10 @@ const animateTextureUpdate = (startTime) => {
 };
 
 if (uiSwitch) {
-    uiSwitch.addEventListener('click', () => {
+    uiSwitch.addEventListener('click', (e) => {
         uiWaves[1] = 1.0;
+        uiWavePos[2] = ((e.clientX) - 0.5 * canvas.width) / canvas.height * 3.0;
+        uiWavePos[3] = (((canvas.height - e.clientY)) - 0.5 * canvas.height) / canvas.height * 3.0;
         uiSwitch.classList.toggle('active');
         cancelAnimationFrame(switchAnimFrame);
         animateTextureUpdate(performance.now());
@@ -524,6 +535,7 @@ function renderLoop(time) {
     uiWaves[0] *= 0.95;
     uiWaves[1] *= 0.95;
     gl.uniform2fv(uUiWavesLoc, uiWaves);
+    gl.uniform2fv(uUiWavePosLoc, uiWavePos);
 
     let capsuleWidth = 0.25 * canvas.width;
     let capsulePxX = 60.0 + capsuleWidth / 2.0;
