@@ -40,10 +40,17 @@ html {
     font-weight: 800;
     letter-spacing: 4px;
     text-transform: uppercase;
-    text-shadow: 0 4px 16px rgba(0, 0, 0, 1);
+    text-shadow: 0 4px 24px rgba(0, 0, 0, 1), 0 2px 12px rgba(0, 0, 0, 0.9), 0 0 16px rgba(0, 0, 0, 0.5);
 }
 
-.header-right {
+.header-nav {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    pointer-events: auto;
+}
+
+.header-link {
     font-family: 'Outfit', sans-serif;
     color: rgba(255, 255, 255, 0.6);
     font-size: 0.8rem;
@@ -51,12 +58,11 @@ html {
     letter-spacing: 3px;
     text-transform: uppercase;
     text-decoration: none;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-    pointer-events: auto;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
     transition: color 0.3s ease, text-shadow 0.3s ease;
 }
 
-.header-right:hover {
+.header-link:hover {
     color: #ffffff;
     text-shadow: 0 4px 12px rgba(255, 255, 255, 0.3);
 }
