@@ -19,6 +19,7 @@ uniform vec2 u_capsuleSize;
 uniform sampler2D u_tex;
 uniform vec2 u_texRes;
 uniform float u_time;
+uniform float u_scrollY;
 
 out vec4 fragColor;
 
@@ -36,14 +37,6 @@ float noise(vec3 x) {
                    mix(hash(n + dot(step, vec3(0, 1, 1))), hash(n + dot(step, vec3(1, 1, 1))), u.x), u.y), u.z);
 }
 
-/**
- * smin (Smooth Minimum)
- * Blends two signed distance fields (SDF) smoothly.
- * @param {float} a - First distance value.
- * @param {float} b - Second distance value.
- * @param {float} k - Smoothness factor. Higher 'k' results in wider blending radius.
- * @return {float} The smoothed minimum distance.
- */
 float smin(float a, float b, float k) {
     float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
     return mix(b, a, h) - k * h * (1.0 - h);
@@ -93,11 +86,18 @@ vec2 getCoverUV(vec2 fragCoord, vec2 resolution, vec2 texResolution) {
     return (fragCoord / resolution) * (resolution / newSize) + offset;
 }
 
-/**
- * Refraction Calculation
- * Computes distinct Index of Refraction (IOR) for RGB channels to simulate chromatic aberration.
- * The refracted vector offsets the background UV to create a thick liquid lens effect.
- */
+// Menentukan apakah pixel ini bagian gambar hero atau halaman putih showcase
+vec3 getBackground(vec2 fragCoord, vec2 resolution, vec2 texRes) {
+    // fragCoord.y berjalan dari 0 (bawah) ke Atas
+    // Jika kita scroll layar ke bawah, area putih (showcase) ikut naik
+    if (fragCoord.y <= u_scrollY) {
+        return vec3(1.0); // Tampilkan background warna putih polos (area showcase)
+    }
+    // Jika masih di area hero image, kurangi koordinat dengan scrollY untuk efek offset scroll
+    vec2 p_hero = vec2(fragCoord.x, fragCoord.y - u_scrollY);
+    return texture(u_tex, getCoverUV(p_hero, resolution, texRes)).rgb;
+}
+
 vec3 calcRefraction(vec3 rd, vec3 n, vec2 fragCoord, vec2 resolution, vec2 texRes) {
     vec3 refR = refract(rd, n, 1.0 / 1.31);
     vec3 refG = refract(rd, n, 1.0 / 1.33);
@@ -105,11 +105,12 @@ vec3 calcRefraction(vec3 rd, vec3 n, vec2 fragCoord, vec2 resolution, vec2 texRe
     
     float strength = 0.12 * resolution.y;
     
-    vec2 uvR = getCoverUV(fragCoord + (refR.xy - rd.xy) * strength, resolution, texRes);
-    vec2 uvG = getCoverUV(fragCoord + (refG.xy - rd.xy) * strength, resolution, texRes);
-    vec2 uvB = getCoverUV(fragCoord + (refB.xy - rd.xy) * strength, resolution, texRes);
+    // Menerapkan distorsi ke warna background dinamis (Gambar Hero atau Area Putih)
+    vec3 colR = getBackground(fragCoord + (refR.xy - rd.xy) * strength, resolution, texRes);
+    vec3 colG = getBackground(fragCoord + (refG.xy - rd.xy) * strength, resolution, texRes);
+    vec3 colB = getBackground(fragCoord + (refB.xy - rd.xy) * strength, resolution, texRes);
     
-    return vec3(texture(u_tex, uvR).r, texture(u_tex, uvG).g, texture(u_tex, uvB).b);
+    return vec3(colR.r, colG.g, colB.b);
 }
 
 void main() {
@@ -133,7 +134,7 @@ void main() {
     }
     
     vec2 texRes = u_texRes.x > 0.0 ? u_texRes : vec2(1.0);
-    vec3 col = texture(u_tex, getCoverUV(gl_FragCoord.xy, u_resolution.xy, texRes)).rgb * shadowAlpha; 
+    vec3 col = getBackground(gl_FragCoord.xy, u_resolution.xy, texRes) * shadowAlpha; 
     
     if(t < maxD) {
         vec3 n = calcNormal(p);
@@ -149,13 +150,6 @@ void main() {
     fragColor = vec4(col, 1.0);
 }`;
 
-/**
- * Creates and compiles a WebGL shader.
- * @param {WebGL2RenderingContext} gl - WebGL context.
- * @param {number} type - Shader type.
- * @param {string} source - GLSL source code.
- * @returns {WebGLShader|null} Compiled shader.
- */
 function createShader(gl, type, source) {
     const shader = gl.createShader(type);
     gl.shaderSource(shader, source);
@@ -194,6 +188,7 @@ const uCapsuleSizeLoc = gl.getUniformLocation(program, "u_capsuleSize");
 const uTexLoc = gl.getUniformLocation(program, "u_tex");
 const uTexResLoc = gl.getUniformLocation(program, "u_texRes");
 const uTimeLoc = gl.getUniformLocation(program, "u_time");
+const uScrollYLoc = gl.getUniformLocation(program, "u_scrollY");
 
 const bgTexture = gl.createTexture();
 gl.bindTexture(gl.TEXTURE_2D, bgTexture);
@@ -233,23 +228,22 @@ window.addEventListener('pointerleave', () => isDragging = false);
 window.addEventListener('touchstart', (e) => {
     isDragging = true;
     updateTarget(e.touches[0].clientX, e.touches[0].clientY);
-}, { passive: false });
+}, { passive: true });
+// e.preventDefault dihapus agar user tetap bisa men-scroll page saat drag di mobile
 window.addEventListener('touchmove', (e) => {
-    if (isDragging) { e.preventDefault(); updateTarget(e.touches[0].clientX, e.touches[0].clientY); }
-}, { passive: false });
+    if (isDragging) { updateTarget(e.touches[0].clientX, e.touches[0].clientY); }
+}, { passive: true }); 
 window.addEventListener('touchend', () => isDragging = false);
+
+// Setup scroll tracking
+let currentScrollY = window.scrollY;
+window.addEventListener('scroll', () => { currentScrollY = window.scrollY; });
 
 const K_ANCHOR = 200.0, M_ANCHOR = 1.0, C_ANCHOR = 2.0 * Math.sqrt(K_ANCHOR * M_ANCHOR);
 const K_TAIL = 300.0, M_TAIL = 1.0, C_TAIL = 2.0 * Math.sqrt(K_TAIL * M_TAIL);
 
 let lastTime = performance.now();
 
-/**
- * Logic Critical Damping
- * Updates physics state using Critical Damping for smooth, organic motion.
- * Uses Hooke's Law with damping to prevent oscillation, maintaining stable equilibrium.
- * @param {number} dt - Delta time since last frame.
- */
 function updatePhysics(dt) {
     if (dt > 0.03) dt = 0.03;
 
@@ -289,12 +283,6 @@ resize();
 
 const mappedPoints = new Float32Array(NUM_POINTS * 2);
 
-/**
- * Data Flow to WebGL Uniforms
- * Main render loop. Transmits physics data (points) to WebGL Uniforms.
- * Maps JS pixel coordinates to WebGL normalized device coordinates (NDC).
- * @param {number} time - Elapsed time provided by requestAnimationFrame.
- */
 function render(time) {
     let now = performance.now();
     let dt = (now - lastTime) / 1000.0;
@@ -311,16 +299,19 @@ function render(time) {
     gl.uniform2f(uResolutionLoc, canvas.width, canvas.height);
     gl.uniform2fv(uPointsLoc, mappedPoints);
     gl.uniform1f(uTimeLoc, time * 0.001);
+    
+    // Pass scroll uniform ke shader untuk mentransisikan background texture / warna putih
+    gl.uniform1f(uScrollYLoc, currentScrollY); 
 
     let capsuleWidth = 0.25 * canvas.width;
     let capsulePxX = 60.0 + capsuleWidth / 2.0;
     let capsulePxY = 60.0;
-    
+
     let mapCapsuleX = ((capsulePxX - 0.5 * canvas.width) / canvas.height) * 3.0;
     let mapCapsuleY = (((canvas.height - capsulePxY) - 0.5 * canvas.height) / canvas.height) * 3.0;
     let mapCapsuleW = (capsuleWidth / canvas.height) * 3.0;
     let mapCapsuleR = (34.0 / canvas.height) * 3.0;
-    
+
     gl.uniform2f(uCapsulePosLoc, mapCapsuleX, mapCapsuleY);
     gl.uniform2f(uCapsuleSizeLoc, mapCapsuleW, mapCapsuleR);
 
