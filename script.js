@@ -178,17 +178,19 @@ void main() {
             d_trail = (i == 0) ? dist : smin(d_trail, dist, 0.6);
         }
         
-        float d_capsules = 1000.0;
+        float d_header = 1000.0;
+        float d_ui = 1000.0;
         float elementWave = sin(p.x * 8.0 + u_time * 2.0) * 0.003;
         
         for(int i = 0; i < 3; i++) {
             vec3 capsuleA = vec3(u_capsulePos[i].x - u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
             vec3 capsuleB = vec3(u_capsulePos[i].x + u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
             float capsuleDist = sdCapsule(p, capsuleA, capsuleB, u_capsuleSize[i].y) + elementWave;
-            d_capsules = (i == 0) ? capsuleDist : min(d_capsules, capsuleDist);
+            if (i == 0) d_header = capsuleDist;
+            else d_ui = (i == 1) ? capsuleDist : min(d_ui, capsuleDist);
         }
         
-        if (d_trail < d_capsules) {
+        if (min(d_trail, d_header) < d_ui) {
             vec3 refrCol = calcRefraction(rd, n, fragCoord, u_resolution.xy, texRes);
             float fresnel = pow(1.0 - max(dot(n, -rd), 0.0), 3.0);
             vec3 finalCol = mix(refrCol, vec3(0.9, 0.95, 1.0), fresnel * 0.2);
