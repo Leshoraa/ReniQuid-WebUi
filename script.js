@@ -326,7 +326,17 @@ function updateDOMTextTexture() {
             textCtx.fillStyle = '#ffffff';
             textCtx.textAlign = 'center';
             textCtx.textBaseline = 'middle';
-            textCtx.fillText(el.textContent.trim(), x + rect.width / 2, y + rect.height / 2);
+            
+            let txt = el.textContent.trim();
+            let drawX = x + rect.width / 2;
+            let drawY = y + rect.height / 2;
+            
+            // Menggeser posisi ikon play segitiga agar benar-benar berada di pusat secara visual
+            if (txt === '▶') {
+                drawX += 4;
+            }
+            
+            textCtx.fillText(txt, drawX, drawY);
         }
     };
 
