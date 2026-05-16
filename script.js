@@ -326,16 +326,16 @@ function updateDOMTextTexture() {
             textCtx.fillStyle = '#ffffff';
             textCtx.textAlign = 'center';
             textCtx.textBaseline = 'middle';
-            
+
             let txt = el.textContent.trim();
             let drawX = x + rect.width / 2;
             let drawY = y + rect.height / 2;
-            
+
             // Menggeser posisi ikon play segitiga agar benar-benar berada di pusat secara visual
             if (txt === '▶') {
                 drawX += 4;
             }
-            
+
             textCtx.fillText(txt, drawX, drawY);
         }
     };
@@ -597,7 +597,7 @@ function renderLoop(time) {
     gl.uniform1f(uTimeLoc, time * 0.001);
     gl.uniform1f(uScrollYLoc, currentScrollY);
 
-    for(let w = 0; w < 4; w++) uiWaves[w] *= 0.95;
+    for (let w = 0; w < 4; w++) uiWaves[w] *= 0.95;
     gl.uniform1fv(uUiWavesLoc, uiWaves);
 
     let capsuleWidth = 0.25 * canvas.width;
