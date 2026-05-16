@@ -1,5 +1,5 @@
 const canvas = document.getElementById('glcanvas');
-const gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: false });
+const gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true });
 
 if (!gl) throw new Error("WebGL 2.0 not supported");
 
@@ -14,8 +14,8 @@ precision highp float;
 
 uniform vec2 u_resolution;
 uniform vec2 u_points[5];
-uniform vec2 u_capsulePos;
-uniform vec2 u_capsuleSize;
+uniform vec2 u_capsulePos[3]; // Diubah menjadi 3 untuk menampung Header + 2 UI
+uniform vec2 u_capsuleSize[3]; // Diubah menjadi 3
 uniform sampler2D u_tex;
 uniform sampler2D u_textTex; 
 uniform vec2 u_texRes;
@@ -48,24 +48,35 @@ float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
     return length(pa - ba * h) - r;
 }
 
+float sdCapsule2D(vec2 p, vec2 a, vec2 b, float r) {
+    vec2 pa = p - a, ba = b - a;
+    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba * h) - r;
+}
+
 float map(vec3 p) {
-    float surfaceNoise = noise(p * 2.0 + u_time * 0.5) * 0.02;
-    float d = 1000.0;
+    float trailNoise = noise(p * 2.0 + u_time * 0.5) * 0.02;
+    float d_trail = 1000.0;
     
     for(int i = 0; i < 5; i++) {
         float radius = 0.5 - float(i) * 0.08;
         vec3 center = vec3(u_points[i], 0.0);
-        float dist = length(p - center) - radius + surfaceNoise;
-        d = (i == 0) ? dist : smin(d, dist, 0.6);
+        float dist = length(p - center) - radius + trailNoise;
+        d_trail = (i == 0) ? dist : smin(d_trail, dist, 0.6);
     }
     
-    vec3 capsuleA = vec3(u_capsulePos.x - u_capsuleSize.x * 0.4, u_capsulePos.y, 0.0);
-    vec3 capsuleB = vec3(u_capsulePos.x + u_capsuleSize.x * 1.6, u_capsulePos.y, 0.0);
-    float flowWave = sin(p.x * 10.0 - u_time * 4.0) * 0.001; 
-    float capsuleDist = sdCapsule(p, capsuleA, capsuleB, u_capsuleSize.y) + surfaceNoise + flowWave;
-    d = smin(d, capsuleDist, 0.6);
+    float d_capsules = 1000.0;
+    float elementWave = sin(p.x * 8.0 + u_time * 2.0) * 0.003;
     
-    return d;
+    // Loop disesuaikan menjadi 3 elemen kapsul
+    for(int i = 0; i < 3; i++) {
+        vec3 capsuleA = vec3(u_capsulePos[i].x - u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
+        vec3 capsuleB = vec3(u_capsulePos[i].x + u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
+        float capsuleDist = sdCapsule(p, capsuleA, capsuleB, u_capsuleSize[i].y) + elementWave;
+        d_capsules = (i == 0) ? capsuleDist : min(d_capsules, capsuleDist);
+    }
+    
+    return smin(d_trail, d_capsules, 0.6);
 }
 
 vec3 calcNormal(vec3 p) {
@@ -86,21 +97,38 @@ vec2 getCoverUV(vec2 fragCoord, vec2 resolution, vec2 texResolution) {
     return (fragCoord / resolution) * (resolution / newSize) + offset;
 }
 
-vec3 getBackground(vec2 fragCoord, vec2 resolution, vec2 texRes, float scrollY) {
-    float docY_fromTop = scrollY + (resolution.y - fragCoord.y);
-    vec3 baseColor;
-    
+vec3 getPureBackground(vec2 coord, vec2 resolution, vec2 texRes, float scrollY) {
+    float docY_fromTop = scrollY + (resolution.y - coord.y);
     if (docY_fromTop > resolution.y) {
-        vec2 bgCoord = vec2(fragCoord.x, resolution.y - (docY_fromTop - resolution.y));
-        baseColor = texture(u_tex, getCoverUV(bgCoord, resolution, texRes)).rgb;
-    } else {
-        baseColor = vec3(0.95); 
+        vec2 bgCoord = vec2(coord.x, resolution.y - (docY_fromTop - resolution.y));
+        return texture(u_tex, getCoverUV(bgCoord, resolution, texRes)).rgb;
+    }
+    return vec3(0.95); 
+}
+
+vec3 getSceneColor(vec2 coord, vec2 resolution, vec2 texRes, float scrollY) {
+    vec2 p2d = ((coord - 0.5 * resolution) / resolution.y) * 3.0;
+    float d_capsules = 1000.0;
+    
+    // Loop disesuaikan menjadi 3 elemen kapsul
+    for(int i = 0; i < 3; i++) {
+        vec2 capsuleA = vec2(u_capsulePos[i].x - u_capsuleSize[i].x, u_capsulePos[i].y);
+        vec2 capsuleB = vec2(u_capsulePos[i].x + u_capsuleSize[i].x, u_capsulePos[i].y);
+        float capsuleDist = sdCapsule2D(p2d, capsuleA, capsuleB, u_capsuleSize[i].y);
+        d_capsules = (i == 0) ? capsuleDist : min(d_capsules, capsuleDist);
     }
     
-    vec2 docUV = vec2(fragCoord.x / resolution.x, 1.0 - (docY_fromTop / (resolution.y * 2.0)));
+    vec3 imgBg = getPureBackground(coord, resolution, texRes, scrollY);
+    
+    float docY_fromTop = scrollY + (resolution.y - coord.y);
+    vec2 docUV = vec2(coord.x / resolution.x, 1.0 - (docY_fromTop / (resolution.y * 2.0)));
     vec4 textData = texture(u_textTex, docUV);
     
-    return mix(baseColor, textData.rgb, textData.a);
+    if (d_capsules < 0.0) {
+        vec3 glassCol = mix(imgBg, vec3(0.95, 0.98, 1.0), 0.1);
+        return mix(glassCol, textData.rgb, textData.a);
+    }
+    return mix(imgBg, textData.rgb, textData.a);
 }
 
 vec3 calcRefraction(vec3 rd, vec3 n, vec2 fragCoord, vec2 resolution, vec2 texRes) {
@@ -110,14 +138,15 @@ vec3 calcRefraction(vec3 rd, vec3 n, vec2 fragCoord, vec2 resolution, vec2 texRe
     
     float strength = 0.1 * resolution.y; 
     
-    vec3 colR = getBackground(fragCoord + (refR.xy - rd.xy) * strength, resolution, texRes, u_scrollY);
-    vec3 colG = getBackground(fragCoord + (refG.xy - rd.xy) * strength, resolution, texRes, u_scrollY);
-    vec3 colB = getBackground(fragCoord + (refB.xy - rd.xy) * strength, resolution, texRes, u_scrollY);
+    vec3 colR = getSceneColor(fragCoord + (refR.xy - rd.xy) * strength, resolution, texRes, u_scrollY);
+    vec3 colG = getSceneColor(fragCoord + (refG.xy - rd.xy) * strength, resolution, texRes, u_scrollY);
+    vec3 colB = getSceneColor(fragCoord + (refB.xy - rd.xy) * strength, resolution, texRes, u_scrollY);
     
     return vec3(colR.r, colG.g, colB.b);
 }
 
-vec4 render(vec2 fragCoord) {
+void main() {
+    vec2 fragCoord = gl_FragCoord.xy;
     vec2 uv = (fragCoord - 0.5 * u_resolution.xy) / u_resolution.y;
     vec3 ro = vec3(0.0, 0.0, 3.0);
     vec3 rd = normalize(vec3(uv, -1.0));
@@ -129,7 +158,7 @@ vec4 render(vec2 fragCoord) {
     float maxD = 10.0;
     vec3 p;
     
-    for(int i = 0; i < 32; i++) {
+    for(int i = 0; i < 24; i++) {
         p = ro + rd * t;
         float d = map(p);
         if(d < 0.001 || t > maxD) break;
@@ -137,27 +166,63 @@ vec4 render(vec2 fragCoord) {
     }
     
     vec2 texRes = u_texRes.x > 0.0 ? u_texRes : vec2(1.0);
-    vec3 bgCol = getBackground(fragCoord, u_resolution.xy, texRes, u_scrollY) * shadowAlpha;
     
     if(t < maxD) {
         vec3 n = calcNormal(p);
         vec3 l = normalize(vec3(1.0, 1.5, 2.0)); 
         
-        vec3 refrCol = calcRefraction(rd, n, fragCoord, u_resolution.xy, texRes);
+        float d_trail = 1000.0;
+        float trailNoise = noise(p * 2.0 + u_time * 0.5) * 0.02;
+        for(int i = 0; i < 5; i++) {
+            float radius = 0.5 - float(i) * 0.08;
+            vec3 center = vec3(u_points[i], 0.0);
+            float dist = length(p - center) - radius + trailNoise;
+            d_trail = (i == 0) ? dist : smin(d_trail, dist, 0.6);
+        }
         
-        float fresnel = pow(1.0 - max(dot(n, -rd), 0.0), 3.0);
-        vec3 finalCol = mix(refrCol, bgCol, fresnel * 0.3);
+        float d_capsules = 1000.0;
+        float elementWave = sin(p.x * 8.0 + u_time * 2.0) * 0.003;
         
-        finalCol += vec3(1.0) * pow(max(dot(n, normalize(-rd + l)), 0.0), 800.0) * 1.5;
+        // Loop disesuaikan menjadi 3 elemen kapsul
+        for(int i = 0; i < 3; i++) {
+            vec3 capsuleA = vec3(u_capsulePos[i].x - u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
+            vec3 capsuleB = vec3(u_capsulePos[i].x + u_capsuleSize[i].x, u_capsulePos[i].y, 0.0);
+            float capsuleDist = sdCapsule(p, capsuleA, capsuleB, u_capsuleSize[i].y) + elementWave;
+            d_capsules = (i == 0) ? capsuleDist : min(d_capsules, capsuleDist);
+        }
         
-        return vec4(finalCol, 1.0); 
+        if (d_trail < d_capsules) {
+            vec3 refrCol = calcRefraction(rd, n, fragCoord, u_resolution.xy, texRes);
+            float fresnel = pow(1.0 - max(dot(n, -rd), 0.0), 3.0);
+            vec3 finalCol = mix(refrCol, vec3(0.9, 0.95, 1.0), fresnel * 0.2);
+            finalCol += vec3(1.0) * pow(max(dot(n, normalize(-rd + l)), 0.0), 800.0) * 1.5;
+            fragColor = vec4(finalCol, 1.0);
+        } else {
+            vec3 refR = refract(rd, n, 1.0 / 1.32);
+            vec3 refG = refract(rd, n, 1.0 / 1.33);
+            vec3 refB = refract(rd, n, 1.0 / 1.34);
+            float strength = 0.1 * u_resolution.y;
+            
+            vec3 colR = getPureBackground(fragCoord + (refR.xy - rd.xy) * strength, u_resolution.xy, texRes, u_scrollY);
+            vec3 colG = getPureBackground(fragCoord + (refG.xy - rd.xy) * strength, u_resolution.xy, texRes, u_scrollY);
+            vec3 colB = getPureBackground(fragCoord + (refB.xy - rd.xy) * strength, u_resolution.xy, texRes, u_scrollY);
+            vec3 refrCol = vec3(colR.r, colG.g, colB.b);
+            
+            float fresnel = pow(1.0 - max(dot(n, -rd), 0.0), 3.0);
+            vec3 finalCol = mix(refrCol, vec3(0.9, 0.95, 1.0), fresnel * 0.2);
+            finalCol += vec3(1.0) * pow(max(dot(n, normalize(-rd + l)), 0.0), 800.0) * 1.5;
+            
+            float docY_fromTop = u_scrollY + (u_resolution.y - fragCoord.y);
+            vec2 docUV = vec2(fragCoord.x / u_resolution.x, 1.0 - (docY_fromTop / (u_resolution.y * 2.0)));
+            vec4 textData = texture(u_textTex, docUV);
+            finalCol = mix(finalCol, textData.rgb, textData.a);
+            
+            fragColor = vec4(finalCol, 1.0);
+        }
     } else {
-        return vec4(0.0, 0.0, 0.0, 1.0 - shadowAlpha);
+        vec3 bgCol = getSceneColor(fragCoord, u_resolution.xy, texRes, u_scrollY);
+        fragColor = vec4(bgCol * shadowAlpha, 1.0);
     }
-}
-
-void main() {
-    fragColor = render(gl_FragCoord.xy);
 }`;
 
 function createShader(gl, type, source) {
@@ -240,24 +305,9 @@ function updateDOMTextTexture() {
         const x = rect.left;
         const y = rect.top + window.scrollY;
 
-        const bgColor = style.backgroundColor;
-        const isFilled = bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent';
-
-        textCtx.strokeStyle = style.borderColor || '#ffffff';
-        textCtx.lineWidth = 2;
-        textCtx.beginPath();
-        textCtx.roundRect(x, y, rect.width, rect.height, radius);
-        
-        if (isFilled) {
-            textCtx.fillStyle = bgColor;
-            textCtx.fill();
-        } else {
-            textCtx.stroke();
-        }
-
         if (el.textContent.trim()) {
             textCtx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-            textCtx.fillStyle = style.color;
+            textCtx.fillStyle = '#ffffff'; 
             textCtx.textAlign = 'center';
             textCtx.textBaseline = 'middle';
             textCtx.fillText(el.textContent.trim(), x + rect.width / 2, y + rect.height / 2);
@@ -268,17 +318,16 @@ function updateDOMTextTexture() {
         const el = document.getElementById(id);
         if (!el) return;
         const rect = el.getBoundingClientRect();
-        const style = window.getComputedStyle(el);
         const x = rect.left + rect.width / 2;
         const y = rect.top + window.scrollY + rect.height / 2;
         
-        textCtx.fillStyle = style.backgroundColor || '#ffffff';
+        textCtx.fillStyle = '#ffffff';
         textCtx.beginPath();
         textCtx.arc(x, y, rect.width / 2, 0, Math.PI * 2);
         textCtx.fill();
     };
 
-    const elementsToDraw = document.querySelectorAll('.header-title, .welcome-title, .welcome-subtitle, .welcome-hint, #showcase-title, #showcase-sub');
+    const elementsToDraw = document.querySelectorAll('.welcome-title, .welcome-subtitle, .welcome-hint, #showcase-title, #showcase-sub');
     elementsToDraw.forEach(el => {
         if(el.id) drawText(el.id);
         else {
@@ -350,6 +399,16 @@ window.addEventListener('touchmove', (e) => {
 }, { passive: true });
 window.addEventListener('touchend', () => isDragging = false);
 
+const keysPressed = {};
+window.addEventListener('keydown', (e) => {
+    const key = e.key.toLowerCase();
+    if (['w', 'a', 's', 'd'].includes(key)) keysPressed[key] = true;
+});
+window.addEventListener('keyup', (e) => {
+    const key = e.key.toLowerCase();
+    if (['w', 'a', 's', 'd'].includes(key)) keysPressed[key] = false;
+});
+
 let currentScrollY = window.scrollY;
 window.addEventListener('scroll', () => { currentScrollY = window.scrollY; });
 
@@ -360,19 +419,21 @@ let lastTime = performance.now();
 function updatePhysics(dt) {
     if (dt > 0.03) dt = 0.03;
 
-    if (isDragging) {
-        points[0].x = targetPos.x;
-        points[0].y = targetPos.y;
-        points[0].vx = 0;
-        points[0].vy = 0;
-    } else {
-        let fx = K_ANCHOR * (targetPos.x - points[0].x) - C_ANCHOR * points[0].vx;
-        let fy = K_ANCHOR * (targetPos.y - points[0].y) - C_ANCHOR * points[0].vy;
-        points[0].vx += (fx / M_ANCHOR) * dt;
-        points[0].vy += (fy / M_ANCHOR) * dt;
-        points[0].x += points[0].vx * dt;
-        points[0].y += points[0].vy * dt;
-    }
+    const keyboardSpeed = 600.0;
+    if (keysPressed['w']) targetPos.y -= keyboardSpeed * dt;
+    if (keysPressed['s']) targetPos.y += keyboardSpeed * dt;
+    if (keysPressed['a']) targetPos.x -= keyboardSpeed * dt;
+    if (keysPressed['d']) targetPos.x += keyboardSpeed * dt;
+
+    targetPos.x = Math.max(0, Math.min(window.innerWidth, targetPos.x));
+    targetPos.y = Math.max(0, Math.min(window.innerHeight, targetPos.y));
+
+    let fx = K_ANCHOR * (targetPos.x - points[0].x) - C_ANCHOR * points[0].vx;
+    let fy = K_ANCHOR * (targetPos.y - points[0].y) - C_ANCHOR * points[0].vy;
+    points[0].vx += (fx / M_ANCHOR) * dt;
+    points[0].vy += (fy / M_ANCHOR) * dt;
+    points[0].x += points[0].vx * dt;
+    points[0].y += points[0].vy * dt;
 
     for (let i = 1; i < NUM_POINTS; i++) {
         let p = points[i];
@@ -396,6 +457,8 @@ window.addEventListener('resize', resize);
 resize();
 
 const mappedPoints = new Float32Array(NUM_POINTS * 2);
+const capsuleDataPos = new Float32Array(6); // Diperluas ke 6 (3 Kapsul * 2)
+const capsuleDataSize = new Float32Array(6); // Diperluas ke 6
 
 function renderLoop(time) {
     let now = performance.now();
@@ -418,6 +481,7 @@ function renderLoop(time) {
     gl.uniform1f(uTimeLoc, time * 0.001);
     gl.uniform1f(uScrollYLoc, currentScrollY);
 
+    // --- SEGMEN 1: KALKULASI KAPSUL LIQUID HEADER (Di simpan pada Indeks 0) ---
     let capsuleWidth = 0.25 * canvas.width;
     let capsulePxX = 60.0 + capsuleWidth / 2.0;
     let capsulePxY = 60.0;
@@ -427,8 +491,37 @@ function renderLoop(time) {
     let mapCapsuleW = (capsuleWidth / canvas.height) * 3.0;
     let mapCapsuleR = (34.0 / canvas.height) * 3.0;
 
-    gl.uniform2f(uCapsulePosLoc, mapCapsuleX, mapCapsuleY);
-    gl.uniform2f(uCapsuleSizeLoc, mapCapsuleW, mapCapsuleR);
+    // Menyelaraskan struktur offset tengah kapsul agar seragam dengan metode hitung DOM
+    capsuleDataPos[0] = mapCapsuleX + mapCapsuleW * 0.6;
+    capsuleDataPos[1] = mapCapsuleY;
+    capsuleDataSize[0] = mapCapsuleW * 1.0;
+    capsuleDataSize[1] = mapCapsuleR;
+
+    // --- SEGMEN 2: KALKULASI KAPSUL ELEMEN UI DOM (Di simpan pada Indeks 1 & 2) ---
+    const elements = [uiBtn, uiSwitch];
+    elements.forEach((el, idx) => {
+        const i = idx + 1; // Mulai dari indeks uniform ke-1 setelah Header
+        if (el) {
+            const rect = el.getBoundingClientRect();
+            const cx = ((rect.left + rect.width / 2) - 0.5 * canvas.width) / canvas.height * 3.0;
+            const cy = (((canvas.height - (rect.top + rect.height / 2))) - 0.5 * canvas.height) / canvas.height * 3.0;
+            const halfLen = Math.max(0, (rect.width - rect.height) / 2) / canvas.height * 3.0;
+            const radius = (rect.height / 2) / canvas.height * 3.0;
+            
+            capsuleDataPos[i * 2] = cx;
+            capsuleDataPos[i * 2 + 1] = cy;
+            capsuleDataSize[i * 2] = halfLen;
+            capsuleDataSize[i * 2 + 1] = radius;
+        } else {
+            capsuleDataPos[i * 2] = -999.0;
+            capsuleDataPos[i * 2 + 1] = -999.0;
+            capsuleDataSize[i * 2] = 0.0;
+            capsuleDataSize[i * 2 + 1] = 0.0;
+        }
+    });
+
+    gl.uniform2fv(uCapsulePosLoc, capsuleDataPos);
+    gl.uniform2fv(uCapsuleSizeLoc, capsuleDataSize);
 
     if (imageLoaded) gl.uniform2f(uTexResLoc, bgImage.width, bgImage.height);
 
