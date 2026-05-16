@@ -14,11 +14,11 @@ precision highp float;
 
 uniform vec2 u_resolution;
 uniform vec2 u_points[5];
+uniform vec2 u_capsulePos;
+uniform vec2 u_capsuleSize;
 uniform sampler2D u_tex;
 uniform vec2 u_texRes;
 uniform float u_time;
-uniform float u_headerY;
-uniform float u_headerWidth;
 
 out vec4 fragColor;
 
@@ -36,6 +36,14 @@ float noise(vec3 x) {
                    mix(hash(n + dot(step, vec3(0, 1, 1))), hash(n + dot(step, vec3(1, 1, 1))), u.x), u.y), u.z);
 }
 
+/**
+ * smin (Smooth Minimum)
+ * Blends two signed distance fields (SDF) smoothly.
+ * @param {float} a - First distance value.
+ * @param {float} b - Second distance value.
+ * @param {float} k - Smoothness factor. Higher 'k' results in wider blending radius.
+ * @return {float} The smoothed minimum distance.
+ */
 float smin(float a, float b, float k) {
     float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
     return mix(b, a, h) - k * h * (1.0 - h);
@@ -43,29 +51,28 @@ float smin(float a, float b, float k) {
 
 float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
     vec3 pa = p - a, ba = b - a;
-    float h = clamp(dot(pa, ba) / max(dot(ba, ba), 0.0001), 0.0, 1.0);
+    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
     return length(pa - ba * h) - r;
 }
 
 float map(vec3 p) {
     float surfaceNoise = noise(p * 2.0 + u_time * 0.5) * 0.03;
-    float blobDist = 1000.0;
+    float d = 1000.0;
     
     for(int i = 0; i < 5; i++) {
         float radius = 0.5 - float(i) * 0.08;
         vec3 center = vec3(u_points[i], 0.0);
         float dist = length(p - center) - radius + surfaceNoise;
-        blobDist = (i == 0) ? dist : smin(blobDist, dist, 0.6);
+        d = (i == 0) ? dist : smin(d, dist, 0.6);
     }
     
-    float wave = sin(p.x * 2.5 + u_time * 1.2) * 0.015 + cos(p.x * 1.5 - u_time * 0.8) * 0.01;
-    vec3 pWarped = p;
-    pWarped.y -= wave;
-    vec3 capStart = vec3(-u_headerWidth, u_headerY, 0.0);
-    vec3 capEnd = vec3(u_headerWidth, u_headerY, 0.0);
-    float headerDist = sdCapsule(pWarped, capStart, capEnd, 0.1) + surfaceNoise * 0.5;
+    vec3 capsuleA = vec3(u_capsulePos.x - u_capsuleSize.x * 0.4, u_capsulePos.y, 0.0);
+    vec3 capsuleB = vec3(u_capsulePos.x + u_capsuleSize.x * 1.6, u_capsulePos.y, 0.0);
+    float flowWave = sin(p.x * 10.0 - u_time * 4.0) * 0.001;
+    float capsuleDist = sdCapsule(p, capsuleA, capsuleB, u_capsuleSize.y) + surfaceNoise + flowWave;
+    d = smin(d, capsuleDist, 0.6);
     
-    return smin(blobDist, headerDist, 0.7);
+    return d;
 }
 
 vec3 calcNormal(vec3 p) {
@@ -86,6 +93,11 @@ vec2 getCoverUV(vec2 fragCoord, vec2 resolution, vec2 texResolution) {
     return (fragCoord / resolution) * (resolution / newSize) + offset;
 }
 
+/**
+ * Refraction Calculation
+ * Computes distinct Index of Refraction (IOR) for RGB channels to simulate chromatic aberration.
+ * The refracted vector offsets the background UV to create a thick liquid lens effect.
+ */
 vec3 calcRefraction(vec3 rd, vec3 n, vec2 fragCoord, vec2 resolution, vec2 texRes) {
     vec3 refR = refract(rd, n, 1.0 / 1.31);
     vec3 refG = refract(rd, n, 1.0 / 1.33);
@@ -135,14 +147,21 @@ void main() {
     }
     
     fragColor = vec4(col, 1.0);
-}
-`;
+}`;
 
+/**
+ * Creates and compiles a WebGL shader.
+ * @param {WebGL2RenderingContext} gl - WebGL context.
+ * @param {number} type - Shader type.
+ * @param {string} source - GLSL source code.
+ * @returns {WebGLShader|null} Compiled shader.
+ */
 function createShader(gl, type, source) {
     const shader = gl.createShader(type);
     gl.shaderSource(shader, source);
     gl.compileShader(shader);
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error(gl.getShaderInfoLog(shader));
         gl.deleteShader(shader);
         return null;
     }
@@ -160,8 +179,8 @@ gl.linkProgram(program);
 const positionBuffer = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-    -1, -1,  1, -1, -1,  1,
-    -1,  1,  1, -1,  1,  1
+    -1, -1, 1, -1, -1, 1,
+    -1, 1, 1, -1, 1, 1
 ]), gl.STATIC_DRAW);
 
 const positionLocation = gl.getAttribLocation(program, "a_position");
@@ -170,11 +189,11 @@ gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
 const uResolutionLoc = gl.getUniformLocation(program, "u_resolution");
 const uPointsLoc = gl.getUniformLocation(program, "u_points");
+const uCapsulePosLoc = gl.getUniformLocation(program, "u_capsulePos");
+const uCapsuleSizeLoc = gl.getUniformLocation(program, "u_capsuleSize");
 const uTexLoc = gl.getUniformLocation(program, "u_tex");
 const uTexResLoc = gl.getUniformLocation(program, "u_texRes");
 const uTimeLoc = gl.getUniformLocation(program, "u_time");
-const uHeaderYLoc = gl.getUniformLocation(program, "u_headerY");
-const uHeaderWidthLoc = gl.getUniformLocation(program, "u_headerWidth");
 
 const bgTexture = gl.createTexture();
 gl.bindTexture(gl.TEXTURE_2D, bgTexture);
@@ -194,14 +213,14 @@ bgImage.onload = () => {
 };
 
 const NUM_POINTS = 5;
-const points = Array.from({length: NUM_POINTS}, () => ({
-    x: window.innerWidth / 2, 
-    y: window.innerHeight / 2, 
-    vx: 0, 
+const points = Array.from({ length: NUM_POINTS }, () => ({
+    x: window.innerWidth / 2,
+    y: window.innerHeight / 2,
+    vx: 0,
     vy: 0
 }));
 
-const targetPos = {x: window.innerWidth / 2, y: window.innerHeight / 2};
+const targetPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 let isDragging = false;
 
 const updateTarget = (x, y) => { targetPos.x = x; targetPos.y = y; };
@@ -211,13 +230,13 @@ window.addEventListener('pointermove', (e) => { if (isDragging) updateTarget(e.c
 window.addEventListener('pointerup', () => isDragging = false);
 window.addEventListener('pointerleave', () => isDragging = false);
 
-window.addEventListener('touchstart', (e) => { 
-    isDragging = true; 
-    updateTarget(e.touches[0].clientX, e.touches[0].clientY); 
-}, {passive: false});
-window.addEventListener('touchmove', (e) => { 
-    if (isDragging) { e.preventDefault(); updateTarget(e.touches[0].clientX, e.touches[0].clientY); } 
-}, {passive: false});
+window.addEventListener('touchstart', (e) => {
+    isDragging = true;
+    updateTarget(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: false });
+window.addEventListener('touchmove', (e) => {
+    if (isDragging) { e.preventDefault(); updateTarget(e.touches[0].clientX, e.touches[0].clientY); }
+}, { passive: false });
 window.addEventListener('touchend', () => isDragging = false);
 
 const K_ANCHOR = 200.0, M_ANCHOR = 1.0, C_ANCHOR = 2.0 * Math.sqrt(K_ANCHOR * M_ANCHOR);
@@ -225,6 +244,12 @@ const K_TAIL = 300.0, M_TAIL = 1.0, C_TAIL = 2.0 * Math.sqrt(K_TAIL * M_TAIL);
 
 let lastTime = performance.now();
 
+/**
+ * Logic Critical Damping
+ * Updates physics state using Critical Damping for smooth, organic motion.
+ * Uses Hooke's Law with damping to prevent oscillation, maintaining stable equilibrium.
+ * @param {number} dt - Delta time since last frame.
+ */
 function updatePhysics(dt) {
     if (dt > 0.03) dt = 0.03;
 
@@ -244,7 +269,7 @@ function updatePhysics(dt) {
 
     for (let i = 1; i < NUM_POINTS; i++) {
         let p = points[i];
-        let target = points[i-1];
+        let target = points[i - 1];
         let fx = K_TAIL * (target.x - p.x) - C_TAIL * p.vx;
         let fy = K_TAIL * (target.y - p.y) - C_TAIL * p.vy;
         p.vx += (fx / M_TAIL) * dt;
@@ -264,6 +289,12 @@ resize();
 
 const mappedPoints = new Float32Array(NUM_POINTS * 2);
 
+/**
+ * Data Flow to WebGL Uniforms
+ * Main render loop. Transmits physics data (points) to WebGL Uniforms.
+ * Maps JS pixel coordinates to WebGL normalized device coordinates (NDC).
+ * @param {number} time - Elapsed time provided by requestAnimationFrame.
+ */
 function render(time) {
     let now = performance.now();
     let dt = (now - lastTime) / 1000.0;
@@ -272,25 +303,29 @@ function render(time) {
     updatePhysics(dt);
 
     for (let i = 0; i < NUM_POINTS; i++) {
-        mappedPoints[i*2] = ((points[i].x - 0.5 * canvas.width) / canvas.height) * 3.0;
-        mappedPoints[i*2+1] = (((canvas.height - points[i].y) - 0.5 * canvas.height) / canvas.height) * 3.0;
+        mappedPoints[i * 2] = ((points[i].x - 0.5 * canvas.width) / canvas.height) * 3.0;
+        mappedPoints[i * 2 + 1] = (((canvas.height - points[i].y) - 0.5 * canvas.height) / canvas.height) * 3.0;
     }
-
-    let headerPixelY = 60.0; // Header stays locked relative to viewport
-    let mappedHeaderY = (((canvas.height - headerPixelY) - 0.5 * canvas.height) / canvas.height) * 3.0;
-    
-    let headerPixelWidth = Math.min(canvas.width * 0.9, 800);
-    let mappedHeaderHalfWidth = (headerPixelWidth * 0.5 / canvas.height) * 3.0;
 
     gl.useProgram(program);
     gl.uniform2f(uResolutionLoc, canvas.width, canvas.height);
     gl.uniform2fv(uPointsLoc, mappedPoints);
     gl.uniform1f(uTimeLoc, time * 0.001);
-    gl.uniform1f(uHeaderYLoc, mappedHeaderY);
-    gl.uniform1f(uHeaderWidthLoc, mappedHeaderHalfWidth);
+
+    let capsuleWidth = 0.25 * canvas.width;
+    let capsulePxX = 60.0 + capsuleWidth / 2.0;
+    let capsulePxY = 60.0;
     
+    let mapCapsuleX = ((capsulePxX - 0.5 * canvas.width) / canvas.height) * 3.0;
+    let mapCapsuleY = (((canvas.height - capsulePxY) - 0.5 * canvas.height) / canvas.height) * 3.0;
+    let mapCapsuleW = (capsuleWidth / canvas.height) * 3.0;
+    let mapCapsuleR = (34.0 / canvas.height) * 3.0;
+    
+    gl.uniform2f(uCapsulePosLoc, mapCapsuleX, mapCapsuleY);
+    gl.uniform2f(uCapsuleSizeLoc, mapCapsuleW, mapCapsuleR);
+
     if (imageLoaded) gl.uniform2f(uTexResLoc, bgImage.width, bgImage.height);
-    
+
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, bgTexture);
     gl.uniform1i(uTexLoc, 0);
