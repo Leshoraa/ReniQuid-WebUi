@@ -480,39 +480,40 @@ const targetPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 let isDragging = false;
 const updateTarget = (x, y) => { targetPos.x = x; targetPos.y = y; };
 
-// --- MODIFIKASI KONTROL INPUT (Hanya aktif jika klik dekat bola utama cairan) ---
-const DRAG_RADIUS = 130; // Batas radius (dalam piksel) untuk bisa mulai menyeret bola cairan
+// --- KONTROL INPUT POINTER (Mouse/Stylus) ---
+const DRAG_RADIUS = 130;
+const TOUCH_DRAG_RADIUS = 180; // Lebih besar untuk toleransi jari
 
 window.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch') return; // Handled by touch events
     const dx = e.clientX - points[0].x;
     const dy = e.clientY - points[0].y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    if (distance < DRAG_RADIUS) {
+    if (Math.sqrt(dx * dx + dy * dy) < DRAG_RADIUS) {
         isDragging = true;
         updateTarget(e.clientX, e.clientY);
     }
 });
-window.addEventListener('pointermove', (e) => { if (isDragging) updateTarget(e.clientX, e.clientY); });
-window.addEventListener('pointerup', () => isDragging = false);
-window.addEventListener('pointerleave', () => isDragging = false);
+window.addEventListener('pointermove', (e) => { if (isDragging && e.pointerType !== 'touch') updateTarget(e.clientX, e.clientY); });
+window.addEventListener('pointerup', (e) => { if (e.pointerType !== 'touch') isDragging = false; });
 
+// --- KONTROL INPUT SENTUH (Touch) ---
 window.addEventListener('touchstart', (e) => {
-    const touch = e.touches[0];
+    const touch = e.changedTouches[0];
     const dx = touch.clientX - points[0].x;
     const dy = touch.clientY - points[0].y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    if (distance < DRAG_RADIUS) {
+    if (Math.sqrt(dx * dx + dy * dy) < TOUCH_DRAG_RADIUS) {
         isDragging = true;
         updateTarget(touch.clientX, touch.clientY);
     }
 }, { passive: true });
 window.addEventListener('touchmove', (e) => {
-    if (isDragging) updateTarget(e.touches[0].clientX, e.touches[0].clientY);
-}, { passive: true });
-window.addEventListener('touchend', () => isDragging = false);
-// ---------------------------------------------------------------------------------
+    if (!isDragging) return;
+    e.preventDefault();
+    updateTarget(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: false });
+window.addEventListener('touchend', () => { isDragging = false; });
+window.addEventListener('touchcancel', () => { isDragging = false; });
+// ---------------------------------------------------------------------------
 
 const keysPressed = {};
 window.addEventListener('keydown', (e) => {
