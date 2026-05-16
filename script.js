@@ -24,8 +24,17 @@ uniform float u_scrollY;
 
 out vec4 fragColor;
 
-float cheapFluidWave(vec3 p) {
-    return (sin(p.x * 4.0 + u_time) * cos(p.y * 4.0 - u_time) * sin(p.z * 4.0)) * 0.02;
+float hash(float n) { return fract(sin(n) * 1e4); }
+float noise(vec3 x) {
+    const vec3 step = vec3(110, 241, 171);
+    vec3 i = floor(x);
+    vec3 f = fract(x);
+    float n = dot(i, step);
+    vec3 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(hash(n + dot(step, vec3(0, 0, 0))), hash(n + dot(step, vec3(1, 0, 0))), u.x),
+                   mix(hash(n + dot(step, vec3(0, 1, 0))), hash(n + dot(step, vec3(1, 1, 0))), u.x), u.y),
+               mix(mix(hash(n + dot(step, vec3(0, 0, 1))), hash(n + dot(step, vec3(1, 0, 1))), u.x),
+                   mix(hash(n + dot(step, vec3(0, 1, 1))), hash(n + dot(step, vec3(1, 1, 1))), u.x), u.y), u.z);
 }
 
 float smin(float a, float b, float k) {
@@ -40,7 +49,7 @@ float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
 }
 
 float map(vec3 p) {
-    float surfaceNoise = cheapFluidWave(p * 2.0);
+    float surfaceNoise = noise(p * 2.0 + u_time * 0.5) * 0.02;
     float d = 1000.0;
     
     for(int i = 0; i < 5; i++) {
@@ -52,7 +61,8 @@ float map(vec3 p) {
     
     vec3 capsuleA = vec3(u_capsulePos.x - u_capsuleSize.x * 0.4, u_capsulePos.y, 0.0);
     vec3 capsuleB = vec3(u_capsulePos.x + u_capsuleSize.x * 1.6, u_capsulePos.y, 0.0);
-    float capsuleDist = sdCapsule(p, capsuleA, capsuleB, u_capsuleSize.y) + surfaceNoise;
+    float flowWave = sin(p.x * 10.0 - u_time * 4.0) * 0.001; 
+    float capsuleDist = sdCapsule(p, capsuleA, capsuleB, u_capsuleSize.y) + surfaceNoise + flowWave;
     d = smin(d, capsuleDist, 0.6);
     
     return d;
@@ -94,11 +104,11 @@ vec3 getBackground(vec2 fragCoord, vec2 resolution, vec2 texRes, float scrollY) 
 }
 
 vec3 calcRefraction(vec3 rd, vec3 n, vec2 fragCoord, vec2 resolution, vec2 texRes) {
-    vec3 refR = refract(rd, n, 1.0 / 1.31);
+    vec3 refR = refract(rd, n, 1.0 / 1.32);
     vec3 refG = refract(rd, n, 1.0 / 1.33);
-    vec3 refB = refract(rd, n, 1.0 / 1.35);
+    vec3 refB = refract(rd, n, 1.0 / 1.34);
     
-    float strength = 0.12 * resolution.y;
+    float strength = 0.1 * resolution.y; 
     
     vec3 colR = getBackground(fragCoord + (refR.xy - rd.xy) * strength, resolution, texRes, u_scrollY);
     vec3 colG = getBackground(fragCoord + (refG.xy - rd.xy) * strength, resolution, texRes, u_scrollY);
@@ -107,8 +117,8 @@ vec3 calcRefraction(vec3 rd, vec3 n, vec2 fragCoord, vec2 resolution, vec2 texRe
     return vec3(colR.r, colG.g, colB.b);
 }
 
-void main() {
-    vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
+vec4 render(vec2 fragCoord) {
+    vec2 uv = (fragCoord - 0.5 * u_resolution.xy) / u_resolution.y;
     vec3 ro = vec3(0.0, 0.0, 3.0);
     vec3 rd = normalize(vec3(uv, -1.0));
     
@@ -119,7 +129,7 @@ void main() {
     float maxD = 10.0;
     vec3 p;
     
-    for(int i = 0; i < 40; i++) {
+    for(int i = 0; i < 32; i++) {
         p = ro + rd * t;
         float d = map(p);
         if(d < 0.001 || t > maxD) break;
@@ -127,20 +137,27 @@ void main() {
     }
     
     vec2 texRes = u_texRes.x > 0.0 ? u_texRes : vec2(1.0);
-    vec3 bgCol = getBackground(gl_FragCoord.xy, u_resolution.xy, texRes, u_scrollY) * shadowAlpha;
+    vec3 bgCol = getBackground(fragCoord, u_resolution.xy, texRes, u_scrollY) * shadowAlpha;
     
     if(t < maxD) {
         vec3 n = calcNormal(p);
         vec3 l = normalize(vec3(1.0, 1.5, 2.0)); 
         
-        vec3 refrCol = calcRefraction(rd, n, gl_FragCoord.xy, u_resolution.xy, texRes);
-        vec3 col = refrCol;
-        col += vec3(1.0) * pow(max(dot(n, normalize(-rd + l)), 0.0), 800.0) * 1.5;
+        vec3 refrCol = calcRefraction(rd, n, fragCoord, u_resolution.xy, texRes);
         
-        fragColor = vec4(col, 1.0); 
+        float fresnel = pow(1.0 - max(dot(n, -rd), 0.0), 3.0);
+        vec3 finalCol = mix(refrCol, bgCol, fresnel * 0.3);
+        
+        finalCol += vec3(1.0) * pow(max(dot(n, normalize(-rd + l)), 0.0), 800.0) * 1.5;
+        
+        return vec4(finalCol, 1.0); 
     } else {
-        fragColor = vec4(bgCol, 1.0);
+        return vec4(0.0, 0.0, 0.0, 1.0 - shadowAlpha);
     }
+}
+
+void main() {
+    fragColor = render(gl_FragCoord.xy);
 }`;
 
 function createShader(gl, type, source) {
@@ -261,8 +278,7 @@ function updateDOMTextTexture() {
         textCtx.fill();
     };
 
-    // Render Text dan Elemen
-    const elementsToDraw = document.querySelectorAll('.header-title, .header-link, .welcome-title, .welcome-subtitle, .welcome-hint, #showcase-title, #showcase-sub');
+    const elementsToDraw = document.querySelectorAll('.header-title, .welcome-title, .welcome-subtitle, .welcome-hint, #showcase-title, #showcase-sub');
     elementsToDraw.forEach(el => {
         if(el.id) drawText(el.id);
         else {
