@@ -642,6 +642,11 @@ function renderLoop(time) {
             const halfLen = Math.max(0, (rect.width - rect.height) / 2) / winH * 3.0;
             const radius = (rect.height / 2) / winH * 3.0;
 
+            if (isMobile && i === 1) {
+                halfLen *= 0.75; // Skala panjang (ubah 0.75 sesuai selera, misal 75% dari ukuran asli)
+                radius *= 0.75;  // Skala ketebalan
+            }
+            
             capsuleDataPos[i * 2] = cx;
             capsuleDataPos[i * 2 + 1] = cy;
             capsuleDataSize[i * 2] = halfLen;
