@@ -200,21 +200,18 @@ body {
 .ui-icon-btn {
     width: 65px;
     height: 65px;
-    border: none;
     border-radius: 50%;
     display: flex;
     justify-content: center;
     align-items: center;
     font-size: 1.5rem;
     font-weight: 800;
-    color: #ffffff;
     cursor: pointer;
     background-color: transparent;
     transition: all 0.3s ease;
 }
 
 .ui-icon-btn:hover {
-    background-color: #ffffff;
     color: #000000;
 }
 
