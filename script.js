@@ -474,6 +474,18 @@ if (uiSwitch) {
 const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 const renderScale = isMobile ? 1.0 : 1.0; 
 
+const TRAIL_SCALE_DESKTOP = 1.0;
+const TRAIL_SCALE_MOBILE = 0.4;
+
+function getTrailScale() {
+    return isMobile ? TRAIL_SCALE_MOBILE : TRAIL_SCALE_DESKTOP;
+}
+
+function getHitRadius() {
+    const visualRadiusPx = (0.5 / 3.0) * getTrailScale() * window.innerHeight;
+    return visualRadiusPx + 40; 
+}
+
 const NUM_POINTS = 5;
 const points = Array.from({ length: NUM_POINTS }, () => ({
     x: window.innerWidth / 2,
@@ -484,26 +496,26 @@ const points = Array.from({ length: NUM_POINTS }, () => ({
 
 const targetPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 let isDragging = false;
-const updateTarget = (x, y) => { targetPos.x = x; targetPos.y = y; };
+let fluidTension = 1.0; 
 
-const DRAG_RADIUS = 300;
-const TOUCH_DRAG_RADIUS = 400;
+const updateTarget = (x, y) => { targetPos.x = x; targetPos.y = y; };
 
 function triggerSplash(cx, cy) {
     const dx = cx - points[0].x;
     const dy = cy - points[0].y;
-    const hitRadius = isMobile ? DRAG_RADIUS * 0.4 : DRAG_RADIUS;
-    
-    if (Math.sqrt(dx * dx + dy * dy) < hitRadius) {
-        const force = isMobile ? 15000.0 : 25000.0;
-        points[0].vx += (Math.random() - 0.5) * force * 0.5;
-        points[0].vy += (Math.random() - 0.5) * force * 0.5;
+    if (Math.sqrt(dx * dx + dy * dy) < getHitRadius()) {
+        fluidTension = 0.0; 
+        
+        const force = isMobile ? 1000.0 : 1800.0; 
+        
+        points[0].vx += (Math.random() - 0.5) * force * 1.5;
+        points[0].vy += (Math.random() - 0.5) * force * 1.5;
+        
         for (let i = 1; i < NUM_POINTS; i++) {
             let angle = Math.random() * Math.PI * 2;
-            points[i].vx += Math.cos(angle) * force;
-            points[i].vy += Math.sin(angle) * force;
-            points[i].x += Math.cos(angle) * (isMobile ? 50.0 : 100.0);
-            points[i].y += Math.sin(angle) * (isMobile ? 50.0 : 100.0);
+            let speed = force * (0.5 + Math.random() * 0.8);
+            points[i].vx += Math.cos(angle) * speed;
+            points[i].vy += Math.sin(angle) * speed;
         }
     }
 }
@@ -516,8 +528,7 @@ window.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'touch') return;
     const dx = e.clientX - points[0].x;
     const dy = e.clientY - points[0].y;
-    const currentDragRadius = isMobile ? DRAG_RADIUS * 0.4 : DRAG_RADIUS;
-    if (Math.sqrt(dx * dx + dy * dy) < currentDragRadius) {
+    if (Math.sqrt(dx * dx + dy * dy) < getHitRadius()) {
         isDragging = true;
         updateTarget(e.clientX, e.clientY);
     }
@@ -537,8 +548,7 @@ window.addEventListener('touchstart', (e) => {
 
     const dx = touch.clientX - points[0].x;
     const dy = touch.clientY - points[0].y;
-    const currentTouchRadius = isMobile ? TOUCH_DRAG_RADIUS * 0.4 : TOUCH_DRAG_RADIUS;
-    if (Math.sqrt(dx * dx + dy * dy) < currentTouchRadius) {
+    if (Math.sqrt(dx * dx + dy * dy) < getHitRadius()) {
         isDragging = true;
         updateTarget(touch.clientX, touch.clientY);
     }
@@ -561,12 +571,17 @@ window.addEventListener('keyup', (e) => {
     if (['w', 'a', 's', 'd'].includes(key)) keysPressed[key] = false;
 });
 
-const K_ANCHOR = 200.0, M_ANCHOR = 1.0, C_ANCHOR = 2.0 * Math.sqrt(K_ANCHOR * M_ANCHOR);
-const K_TAIL = 300.0, M_TAIL = 1.0, C_TAIL = 2.0 * Math.sqrt(K_TAIL * M_TAIL);
+const K_ANCHOR = 150.0, M_ANCHOR = 1.0;
+const K_TAIL = 250.0, M_TAIL = 1.0;
+const C_ANCHOR_BASE = 2.0 * Math.sqrt(K_ANCHOR * M_ANCHOR) * 0.9;
+const C_TAIL_BASE = 2.0 * Math.sqrt(K_TAIL * M_TAIL) * 0.8;
+
 let lastTime = performance.now();
 
 function updatePhysics(dt) {
     if (dt > 0.03) dt = 0.03;
+
+    fluidTension += (1.0 - fluidTension) * dt * 1.5;
 
     const keyboardSpeed = 1200.0;
     if (keysPressed['w']) targetPos.y -= keyboardSpeed * dt;
@@ -577,18 +592,23 @@ function updatePhysics(dt) {
     targetPos.x = Math.max(0, Math.min(window.innerWidth, targetPos.x));
     targetPos.y = Math.max(0, Math.min(window.innerHeight, targetPos.y));
 
-    let fx = K_ANCHOR * (targetPos.x - points[0].x) - C_ANCHOR * points[0].vx;
-    let fy = K_ANCHOR * (targetPos.y - points[0].y) - C_ANCHOR * points[0].vy;
-    points[0].vx += (fx / M_ANCHOR) * dt;
-    points[0].vy += (fy / M_ANCHOR) * dt;
+    let currentKAnchor = K_ANCHOR * (0.3 + 0.7 * fluidTension);
+    let currentKTail = K_TAIL * (0.05 + 0.95 * fluidTension);
+    let currentCAnchor = C_ANCHOR_BASE * (0.5 + 0.5 * fluidTension);
+    let currentCTail = C_TAIL_BASE * (0.4 + 0.6 * fluidTension);
+
+    let fx0 = currentKAnchor * (targetPos.x - points[0].x) - currentCAnchor * points[0].vx;
+    let fy0 = currentKAnchor * (targetPos.y - points[0].y) - currentCAnchor * points[0].vy;
+    points[0].vx += (fx0 / M_ANCHOR) * dt;
+    points[0].vy += (fy0 / M_ANCHOR) * dt;
     points[0].x += points[0].vx * dt;
     points[0].y += points[0].vy * dt;
 
     for (let i = 1; i < NUM_POINTS; i++) {
         let p = points[i];
         let target = points[i - 1];
-        let fx = K_TAIL * (target.x - p.x) - C_TAIL * p.vx;
-        let fy = K_TAIL * (target.y - p.y) - C_TAIL * p.vy;
+        let fx = currentKTail * (target.x - p.x) - currentCTail * p.vx;
+        let fy = currentKTail * (target.y - p.y) - currentCTail * p.vy;
         p.vx += (fx / M_TAIL) * dt;
         p.vy += (fy / M_TAIL) * dt;
         p.x += p.vx * dt;
@@ -653,8 +673,7 @@ function renderLoop(time) {
     gl.uniform1f(uScrollYLoc, currentScrollY * renderScale);
     gl.uniform2fv(uPointsLoc, mappedPoints);
 
-    const currentTrailScale = isMobile ? 0.4 : 1.0; 
-    gl.uniform1f(uTrailScaleLoc, currentTrailScale);
+    gl.uniform1f(uTrailScaleLoc, getTrailScale());
 
     for (let w = 0; w < 4; w++) uiWaves[w] *= 0.95;
     gl.uniform1fv(uUiWavesLoc, uiWaves);
