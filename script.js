@@ -489,6 +489,29 @@ const updateTarget = (x, y) => { targetPos.x = x; targetPos.y = y; };
 const DRAG_RADIUS = 300;
 const TOUCH_DRAG_RADIUS = 400;
 
+function triggerSplash(cx, cy) {
+    const dx = cx - points[0].x;
+    const dy = cy - points[0].y;
+    const hitRadius = isMobile ? DRAG_RADIUS * 0.4 : DRAG_RADIUS;
+    
+    if (Math.sqrt(dx * dx + dy * dy) < hitRadius) {
+        const force = isMobile ? 15000.0 : 25000.0;
+        points[0].vx += (Math.random() - 0.5) * force * 0.5;
+        points[0].vy += (Math.random() - 0.5) * force * 0.5;
+        for (let i = 1; i < NUM_POINTS; i++) {
+            let angle = Math.random() * Math.PI * 2;
+            points[i].vx += Math.cos(angle) * force;
+            points[i].vy += Math.sin(angle) * force;
+            points[i].x += Math.cos(angle) * (isMobile ? 50.0 : 100.0);
+            points[i].y += Math.sin(angle) * (isMobile ? 50.0 : 100.0);
+        }
+    }
+}
+
+window.addEventListener('dblclick', (e) => {
+    triggerSplash(e.clientX, e.clientY);
+});
+
 window.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'touch') return;
     const dx = e.clientX - points[0].x;
@@ -502,8 +525,16 @@ window.addEventListener('pointerdown', (e) => {
 window.addEventListener('pointermove', (e) => { if (isDragging && e.pointerType !== 'touch') updateTarget(e.clientX, e.clientY); });
 window.addEventListener('pointerup', (e) => { if (e.pointerType !== 'touch') isDragging = false; });
 
+let lastTapTime = 0;
 window.addEventListener('touchstart', (e) => {
     const touch = e.touches[0];
+    const now = performance.now();
+    
+    if (now - lastTapTime < 300) {
+        triggerSplash(touch.clientX, touch.clientY);
+    }
+    lastTapTime = now;
+
     const dx = touch.clientX - points[0].x;
     const dy = touch.clientY - points[0].y;
     const currentTouchRadius = isMobile ? TOUCH_DRAG_RADIUS * 0.4 : TOUCH_DRAG_RADIUS;
