@@ -562,7 +562,7 @@ function updatePhysics(dt) {
 }
 
 const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-const renderScale = isMobile ? 0.75 : 1.0; 
+const renderScale = isMobile ? 0.8 : 1.0; 
 
 function resize() {
     const winW = window.innerWidth;
