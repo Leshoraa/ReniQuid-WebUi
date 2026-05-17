@@ -616,6 +616,42 @@ function updatePhysics(dt) {
     }
 }
 
+const baseCapsulePos = new Float32Array(10);
+const capsuleDataSize = new Float32Array(10);
+
+function updateUIPositions() {
+    const winW = window.innerWidth;
+    const winH = window.innerHeight;
+
+    const headerEl = document.getElementById('header-overlay');
+    if (headerEl) {
+        const rect = headerEl.getBoundingClientRect();
+        const hPadX = 25, hPadY = 18;
+        const hCx = rect.left + rect.width / 2.0;
+        const hCy = rect.top + rect.height / 2.0;
+        baseCapsulePos[0] = ((hCx - 0.5 * winW) / winH) * 3.0;
+        baseCapsulePos[1] = (((winH - hCy) - 0.5 * winH) / winH) * 3.0;
+        capsuleDataSize[0] = (Math.max(0, (rect.width + hPadX * 2.0) / 2.0 - (rect.height / 2.0 + hPadY)) / winH) * 3.0;
+        capsuleDataSize[1] = ((rect.height / 2.0 + hPadY) / winH) * 3.0;
+    }
+
+    const elements = [uiBtn, uiSwitch, uiSlider, uiIconBtn];
+    elements.forEach((el, idx) => {
+        const i = idx + 1;
+        if (el) {
+            const rect = el.getBoundingClientRect();
+            const cx = ((rect.left + rect.width / 2) - 0.5 * winW) / winH * 3.0;
+            const absoluteY = rect.top + window.scrollY + rect.height / 2.0;
+            const baseCy = (((winH - absoluteY) - 0.5 * winH) / winH) * 3.0;
+            
+            baseCapsulePos[i * 2] = cx;
+            baseCapsulePos[i * 2 + 1] = baseCy;
+            capsuleDataSize[i * 2] = Math.max(0, (rect.width - rect.height) / 2) / winH * 3.0;
+            capsuleDataSize[i * 2 + 1] = (rect.height / 2) / winH * 3.0;
+        }
+    });
+}
+
 function resize() {
     const winW = window.innerWidth;
     const winH = window.innerHeight;
@@ -628,13 +664,13 @@ function resize() {
     gl.viewport(0, 0, canvas.width, canvas.height);
     
     updateDOMTextTexture();
+    updateUIPositions();
 }
 window.addEventListener('resize', resize);
 resize();
 
 const mappedPoints = new Float32Array(NUM_POINTS * 2);
 const capsuleDataPos = new Float32Array(10);
-const capsuleDataSize = new Float32Array(10);
 
 let currentScrollY = window.scrollY;
 let lastScrollY = currentScrollY;
@@ -678,47 +714,15 @@ function renderLoop(time) {
     for (let w = 0; w < 4; w++) uiWaves[w] *= 0.95;
     gl.uniform1fv(uUiWavesLoc, uiWaves);
 
-    const headerEl = document.getElementById('header-overlay');
-    if (headerEl) {
-        const headerRect = headerEl.getBoundingClientRect();
-        const hPadX = 25; 
-        const hPadY = 18;
-        const hCx = headerRect.left + headerRect.width / 2.0;
-        const hCy = headerRect.top + headerRect.height / 2.0;
-
-        let mapCapsuleX = ((hCx - 0.5 * winW) / winH) * 3.0;
-        let mapCapsuleY = (((winH - hCy) - 0.5 * winH) / winH) * 3.0;
-        
-        let hRadius = headerRect.height / 2.0 + hPadY;
-        let hHalfLen = Math.max(0, (headerRect.width + hPadX * 2.0) / 2.0 - hRadius);
-
-        capsuleDataPos[0] = mapCapsuleX;
-        capsuleDataPos[1] = mapCapsuleY;
-        capsuleDataSize[0] = (hHalfLen / winH) * 3.0;
-        capsuleDataSize[1] = (hRadius / winH) * 3.0;
+    const scrollOffsetShader = (currentScrollY / winH) * 3.0;
+    
+    capsuleDataPos[0] = baseCapsulePos[0];
+    capsuleDataPos[1] = baseCapsulePos[1]; 
+    
+    for (let i = 1; i < 5; i++) {
+        capsuleDataPos[i * 2] = baseCapsulePos[i * 2];
+        capsuleDataPos[i * 2 + 1] = baseCapsulePos[i * 2 + 1] + scrollOffsetShader;
     }
-
-    const elements = [uiBtn, uiSwitch, uiSlider, uiIconBtn];
-    elements.forEach((el, idx) => {
-        const i = idx + 1;
-        if (el) {
-            const rect = el.getBoundingClientRect();
-            const cx = ((rect.left + rect.width / 2) - 0.5 * winW) / winH * 3.0;
-            const cy = (((winH - (rect.top + rect.height / 2))) - 0.5 * winH) / winH * 3.0;
-            const halfLen = Math.max(0, (rect.width - rect.height) / 2) / winH * 3.0;
-            const radius = (rect.height / 2) / winH * 3.0;
-            
-            capsuleDataPos[i * 2] = cx;
-            capsuleDataPos[i * 2 + 1] = cy;
-            capsuleDataSize[i * 2] = halfLen;
-            capsuleDataSize[i * 2 + 1] = radius;
-        } else {
-            capsuleDataPos[i * 2] = -999.0;
-            capsuleDataPos[i * 2 + 1] = -999.0;
-            capsuleDataSize[i * 2] = 0.0;
-            capsuleDataSize[i * 2 + 1] = 0.0;
-        }
-    });
 
     gl.uniform2fv(uCapsulePosLoc, capsuleDataPos);
     gl.uniform2fv(uCapsuleSizeLoc, capsuleDataSize);
