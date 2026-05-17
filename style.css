@@ -125,14 +125,12 @@ body {
     font-size: 1rem;
     font-weight: 800;
     letter-spacing: 4px;
-    color: #ffffff;
     cursor: pointer;
     background-color: transparent;
     transition: all 0.3s ease;
 }
 
 .ui-btn:hover {
-    background-color: #ffffff;
     color: #000000;
 }
 
