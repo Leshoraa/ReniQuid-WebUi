@@ -149,7 +149,6 @@ body {
 .ui-knob {
     width: 26px;
     height: 26px;
-    background: #ffffff;
     border-radius: 50%;
     position: absolute;
     top: 50%;
