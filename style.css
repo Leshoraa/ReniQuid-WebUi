@@ -62,7 +62,7 @@ body {
 }
 .welcome-subtitle {
     font-family: 'Outfit', sans-serif;
-    font-size: 1.2rem;
+    font-size: 1rem;
     font-weight: 300;
     letter-spacing: 4px;
     color: #444444;
@@ -71,7 +71,7 @@ body {
     position: absolute;
     bottom: 40px;
     font-family: 'Outfit', sans-serif;
-    font-size: 0.9rem;
+    font-size: 0.6rem;
     font-weight: 500;
     letter-spacing: 3px;
     color: #888888;
@@ -274,4 +274,60 @@ body {
 
 .header-link:hover {
     opacity: 1;
+}
+
+/* --- GAYA UNTUK SECTION INSPIRATION --- */
+#inspiration-section {
+    width: 100%;
+    min-height: 100vh;
+    background-color: #ffffff;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 100px 20px;
+}
+
+.inspiration-content {
+    text-align: center;
+    font-family: 'Outfit', sans-serif;
+    color: #050505;
+    width: 100%;
+    max-width: 1000px;
+}
+
+.inspiration-title {
+    font-size: 3.8rem;
+    font-weight: 800;
+    letter-spacing: 6px;
+    margin-bottom: 1rem;
+    color: #050505;
+}
+
+.inspiration-sub {
+    font-size: 1.2rem;
+    font-weight: 300;
+    margin-bottom: 3rem;
+    letter-spacing: 2px;
+    color: #444444;
+}
+
+.video-container {
+    position: relative;
+    z-index: 20;
+    width: 100%;
+    padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+    background-color: #050505;
+}
+
+.video-container iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
 }

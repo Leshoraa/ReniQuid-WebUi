@@ -107,7 +107,9 @@ vec2 getCoverUV(vec2 fragCoord, vec2 resolution, vec2 texResolution) {
 
 vec3 getPureBackground(vec2 coord, vec2 resolution, vec2 texRes, float scrollY) {
     float docY_fromTop = scrollY + (resolution.y - coord.y);
-    if (docY_fromTop > resolution.y) {
+    if (docY_fromTop > 2.0 * resolution.y) {
+        return vec3(1.0); 
+    } else if (docY_fromTop > resolution.y) {
         vec2 bgCoord = vec2(coord.x, resolution.y - (docY_fromTop - resolution.y));
         return texture(u_tex, getCoverUV(bgCoord, resolution, texRes)).rgb;
     }
@@ -128,7 +130,7 @@ vec3 getSceneColor(vec2 coord, vec2 resolution, vec2 texRes, float scrollY) {
     vec3 imgBg = getPureBackground(coord, resolution, texRes, scrollY);
     
     float docY_fromTop = scrollY + (resolution.y - coord.y);
-    vec2 docUV = vec2(coord.x / resolution.x, 1.0 - (docY_fromTop / (resolution.y * 2.0)));
+    vec2 docUV = vec2(coord.x / resolution.x, 1.0 - (docY_fromTop / (resolution.y * 3.0)));
     vec4 textData = texture(u_textTex, docUV);
     
     if (d_capsules < 0.0) {
@@ -227,7 +229,7 @@ void main() {
             finalCol += vec3(1.0) * pow(max(dot(n, normalize(-rd + l)), 0.0), 800.0) * 1.5;
             
             float docY_fromTop = u_scrollY + (u_resolution.y - fragCoord.y);
-            vec2 docUV = vec2(fragCoord.x / u_resolution.x, 1.0 - (docY_fromTop / (u_resolution.y * 2.0)));
+            vec2 docUV = vec2(fragCoord.x / u_resolution.x, 1.0 - (docY_fromTop / (u_resolution.y * 3.0)));
             vec4 textData = texture(u_textTex, docUV);
             finalCol = mix(finalCol, textData.rgb, textData.a);
             
@@ -295,9 +297,9 @@ const textCtx = textCanvas.getContext('2d');
 const textTexture = gl.createTexture();
 
 function updateDOMTextTexture() {
-    if (textCanvas.width !== window.innerWidth || textCanvas.height !== window.innerHeight * 2) {
+    if (textCanvas.width !== window.innerWidth || textCanvas.height !== window.innerHeight * 3) {
         textCanvas.width = window.innerWidth;
-        textCanvas.height = window.innerHeight * 2;
+        textCanvas.height = window.innerHeight * 3;
     }
     textCtx.clearRect(0, 0, textCanvas.width, textCanvas.height);
 
@@ -331,7 +333,6 @@ function updateDOMTextTexture() {
             let drawX = x + rect.width / 2;
             let drawY = y + rect.height / 2;
 
-            // Menggeser posisi ikon play segitiga agar benar-benar berada di pusat secara visual
             if (txt === '▶') {
                 drawX += 4;
             }
@@ -373,7 +374,7 @@ function updateDOMTextTexture() {
     };
 
 
-    const elementsToDraw = document.querySelectorAll('.welcome-title, .welcome-subtitle, .welcome-hint, #showcase-title, #showcase-sub, .ui-label');
+    const elementsToDraw = document.querySelectorAll('.welcome-title, .welcome-subtitle, .welcome-hint, #showcase-title, #showcase-sub, .ui-label, .inspiration-title, .inspiration-sub');
     elementsToDraw.forEach(el => {
         if (el.id) drawText(el.id);
         else {
