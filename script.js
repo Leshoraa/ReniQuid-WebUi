@@ -525,9 +525,6 @@ window.addEventListener('keyup', (e) => {
     if (['w', 'a', 's', 'd'].includes(key)) keysPressed[key] = false;
 });
 
-let currentScrollY = window.scrollY;
-window.addEventListener('scroll', () => { currentScrollY = window.scrollY; });
-
 const K_ANCHOR = 200.0, M_ANCHOR = 1.0, C_ANCHOR = 2.0 * Math.sqrt(K_ANCHOR * M_ANCHOR);
 const K_TAIL = 300.0, M_TAIL = 1.0, C_TAIL = 2.0 * Math.sqrt(K_TAIL * M_TAIL);
 let lastTime = performance.now();
@@ -564,19 +561,19 @@ function updatePhysics(dt) {
 }
 
 const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-const renderScale = isMobile ? 1.0 : 1.0;
+const renderScale = isMobile ? 1.0 : 1.0; 
 
 function resize() {
     const winW = window.innerWidth;
     const winH = window.innerHeight;
-
+    
     canvas.style.width = winW + 'px';
     canvas.style.height = winH + 'px';
-
+    
     canvas.width = winW * renderScale;
     canvas.height = winH * renderScale;
     gl.viewport(0, 0, canvas.width, canvas.height);
-
+    
     updateDOMTextTexture();
 }
 window.addEventListener('resize', resize);
@@ -586,12 +583,24 @@ const mappedPoints = new Float32Array(NUM_POINTS * 2);
 const capsuleDataPos = new Float32Array(10);
 const capsuleDataSize = new Float32Array(10);
 
+let currentScrollY = window.scrollY;
+let lastScrollY = currentScrollY;
+
 function renderLoop(time) {
     let now = performance.now();
     let dt = (now - lastTime) / 1000.0;
     lastTime = now;
 
     updatePhysics(dt);
+
+    currentScrollY = window.scrollY;
+    let scrollVel = Math.abs(currentScrollY - lastScrollY);
+    lastScrollY = currentScrollY;
+
+    if (scrollVel > 2.0) {
+        let wave = Math.min(0.5, scrollVel * 0.015);
+        for (let w = 0; w < 4; w++) uiWaves[w] = Math.max(uiWaves[w], wave);
+    }
 
     const winW = window.innerWidth;
     const winH = window.innerHeight;
@@ -607,11 +616,11 @@ function renderLoop(time) {
     gl.useProgram(program);
     gl.uniform2f(uResolutionLoc, canvas.width, canvas.height);
     gl.uniform1f(uTimeLoc, time * 0.001);
-
+    
     gl.uniform1f(uScrollYLoc, currentScrollY * renderScale);
     gl.uniform2fv(uPointsLoc, mappedPoints);
 
-    const currentTrailScale = isMobile ? 0.2 : 1.0;
+    const currentTrailScale = isMobile ? 0.4 : 1.0; 
     gl.uniform1f(uTrailScaleLoc, currentTrailScale);
 
     for (let w = 0; w < 4; w++) uiWaves[w] *= 0.95;
@@ -620,14 +629,14 @@ function renderLoop(time) {
     const headerEl = document.getElementById('header-overlay');
     if (headerEl) {
         const headerRect = headerEl.getBoundingClientRect();
-        const hPadX = 25;
+        const hPadX = 25; 
         const hPadY = 18;
         const hCx = headerRect.left + headerRect.width / 2.0;
         const hCy = headerRect.top + headerRect.height / 2.0;
 
         let mapCapsuleX = ((hCx - 0.5 * winW) / winH) * 3.0;
         let mapCapsuleY = (((winH - hCy) - 0.5 * winH) / winH) * 3.0;
-
+        
         let hRadius = headerRect.height / 2.0 + hPadY;
         let hHalfLen = Math.max(0, (headerRect.width + hPadX * 2.0) / 2.0 - hRadius);
 
@@ -646,7 +655,7 @@ function renderLoop(time) {
             const cy = (((winH - (rect.top + rect.height / 2))) - 0.5 * winH) / winH * 3.0;
             const halfLen = Math.max(0, (rect.width - rect.height) / 2) / winH * 3.0;
             const radius = (rect.height / 2) / winH * 3.0;
-
+            
             capsuleDataPos[i * 2] = cx;
             capsuleDataPos[i * 2 + 1] = cy;
             capsuleDataSize[i * 2] = halfLen;
