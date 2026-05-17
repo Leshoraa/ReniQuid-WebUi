@@ -471,6 +471,9 @@ if (uiSwitch) {
     });
 }
 
+const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+const renderScale = isMobile ? 1.0 : 1.0; 
+
 const NUM_POINTS = 5;
 const points = Array.from({ length: NUM_POINTS }, () => ({
     x: window.innerWidth / 2,
@@ -490,7 +493,8 @@ window.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'touch') return;
     const dx = e.clientX - points[0].x;
     const dy = e.clientY - points[0].y;
-    if (Math.sqrt(dx * dx + dy * dy) < DRAG_RADIUS) {
+    const currentDragRadius = isMobile ? DRAG_RADIUS * 0.4 : DRAG_RADIUS;
+    if (Math.sqrt(dx * dx + dy * dy) < currentDragRadius) {
         isDragging = true;
         updateTarget(e.clientX, e.clientY);
     }
@@ -502,7 +506,8 @@ window.addEventListener('touchstart', (e) => {
     const touch = e.touches[0];
     const dx = touch.clientX - points[0].x;
     const dy = touch.clientY - points[0].y;
-    if (Math.sqrt(dx * dx + dy * dy) < TOUCH_DRAG_RADIUS) {
+    const currentTouchRadius = isMobile ? TOUCH_DRAG_RADIUS * 0.4 : TOUCH_DRAG_RADIUS;
+    if (Math.sqrt(dx * dx + dy * dy) < currentTouchRadius) {
         isDragging = true;
         updateTarget(touch.clientX, touch.clientY);
     }
@@ -559,9 +564,6 @@ function updatePhysics(dt) {
         p.y += p.vy * dt;
     }
 }
-
-const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-const renderScale = isMobile ? 1.0 : 1.0; 
 
 function resize() {
     const winW = window.innerWidth;
