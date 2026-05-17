@@ -22,6 +22,7 @@ uniform sampler2D u_textTex;
 uniform vec2 u_texRes;
 uniform float u_time;
 uniform float u_scrollY;
+uniform float u_trailScale;
 
 out vec4 fragColor;
 
@@ -60,7 +61,7 @@ float map(vec3 p) {
     float d_trail = 1000.0;
     
     for(int i = 0; i < 5; i++) {
-        float radius = 0.5 - float(i) * 0.08;
+        float radius = (0.5 - float(i) * 0.08) * u_trailScale;
         vec3 center = vec3(u_points[i], 0.0);
         float dist = length(p - center) - radius + trailNoise;
         d_trail = (i == 0) ? dist : smin(d_trail, dist, 0.6);
@@ -183,7 +184,7 @@ void main() {
         float d_trail = 1000.0;
         float trailNoise = noise(p * 2.0 + u_time * 0.5) * 0.02;
         for(int i = 0; i < 5; i++) {
-            float radius = 0.5 - float(i) * 0.08;
+            float radius = (0.5 - float(i) * 0.08) * u_trailScale;
             vec3 center = vec3(u_points[i], 0.0);
             float dist = length(p - center) - radius + trailNoise;
             d_trail = (i == 0) ? dist : smin(d_trail, dist, 0.6);
@@ -274,6 +275,7 @@ const uTexResLoc = gl.getUniformLocation(program, "u_texRes");
 const uTimeLoc = gl.getUniformLocation(program, "u_time");
 const uScrollYLoc = gl.getUniformLocation(program, "u_scrollY");
 const uUiWavesLoc = gl.getUniformLocation(program, "u_uiWaves");
+const uTrailScaleLoc = gl.getUniformLocation(program, "u_trailScale");
 
 const bgTexture = gl.createTexture();
 gl.bindTexture(gl.TEXTURE_2D, bgTexture);
@@ -309,7 +311,7 @@ function updateDOMTextTexture() {
         const rect = el.getBoundingClientRect();
         const style = window.getComputedStyle(el);
         textCtx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-        textCtx.letterSpacing = style.letterSpacing; // <-- TAMBAHKAN BARIS INI
+        textCtx.letterSpacing = style.letterSpacing;
         textCtx.fillStyle = style.color;
         textCtx.textAlign = 'center';
         textCtx.textBaseline = 'middle';
@@ -326,7 +328,7 @@ function updateDOMTextTexture() {
 
         if (el.textContent.trim()) {
             textCtx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-            textCtx.letterSpacing = style.letterSpacing; // <-- TAMBAHKAN BARIS INI JUGA
+            textCtx.letterSpacing = style.letterSpacing;
             textCtx.fillStyle = '#ffffff';
             textCtx.textAlign = 'center';
             textCtx.textBaseline = 'middle';
@@ -562,19 +564,19 @@ function updatePhysics(dt) {
 }
 
 const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-const renderScale = isMobile ? 1.0 : 1.0; 
+const renderScale = isMobile ? 1.0 : 1.0;
 
 function resize() {
     const winW = window.innerWidth;
     const winH = window.innerHeight;
-    
+
     canvas.style.width = winW + 'px';
     canvas.style.height = winH + 'px';
-    
+
     canvas.width = winW * renderScale;
     canvas.height = winH * renderScale;
     gl.viewport(0, 0, canvas.width, canvas.height);
-    
+
     updateDOMTextTexture();
 }
 window.addEventListener('resize', resize);
@@ -605,9 +607,12 @@ function renderLoop(time) {
     gl.useProgram(program);
     gl.uniform2f(uResolutionLoc, canvas.width, canvas.height);
     gl.uniform1f(uTimeLoc, time * 0.001);
-    
+
     gl.uniform1f(uScrollYLoc, currentScrollY * renderScale);
     gl.uniform2fv(uPointsLoc, mappedPoints);
+
+    const currentTrailScale = isMobile ? 0.2 : 1.0;
+    gl.uniform1f(uTrailScaleLoc, currentTrailScale);
 
     for (let w = 0; w < 4; w++) uiWaves[w] *= 0.95;
     gl.uniform1fv(uUiWavesLoc, uiWaves);
@@ -615,14 +620,14 @@ function renderLoop(time) {
     const headerEl = document.getElementById('header-overlay');
     if (headerEl) {
         const headerRect = headerEl.getBoundingClientRect();
-        const hPadX = 25; 
+        const hPadX = 25;
         const hPadY = 18;
         const hCx = headerRect.left + headerRect.width / 2.0;
         const hCy = headerRect.top + headerRect.height / 2.0;
 
         let mapCapsuleX = ((hCx - 0.5 * winW) / winH) * 3.0;
         let mapCapsuleY = (((winH - hCy) - 0.5 * winH) / winH) * 3.0;
-        
+
         let hRadius = headerRect.height / 2.0 + hPadY;
         let hHalfLen = Math.max(0, (headerRect.width + hPadX * 2.0) / 2.0 - hRadius);
 
@@ -633,30 +638,26 @@ function renderLoop(time) {
     }
 
     const elements = [uiBtn, uiSwitch, uiSlider, uiIconBtn];
-elements.forEach((el, idx) => {
-const i = idx + 1;
-if (el) {
-    const rect = el.getBoundingClientRect();
-    const cx = ((rect.left + rect.width / 2) - 0.5 * winW) / winH * 3.0;
-    const cy = (((winH - (rect.top + rect.height / 2))) - 0.5 * winH) / winH * 3.0;
-    let halfLen = Math.max(0, (rect.width - rect.height) / 2) / winH * 3.0;
-    let radius = (rect.height / 2) / winH * 3
+    elements.forEach((el, idx) => {
+        const i = idx + 1;
+        if (el) {
+            const rect = el.getBoundingClientRect();
+            const cx = ((rect.left + rect.width / 2) - 0.5 * winW) / winH * 3.0;
+            const cy = (((winH - (rect.top + rect.height / 2))) - 0.5 * winH) / winH * 3.0;
+            const halfLen = Math.max(0, (rect.width - rect.height) / 2) / winH * 3.0;
+            const radius = (rect.height / 2) / winH * 3.0;
 
-    if (isMobile && i === 1) {
-        halfLen *= 0.55;
-        radius *= 0.55;
-    }
-    capsuleDataPos[i * 2] = cx;
-    capsuleDataPos[i * 2 + 1] = cy;
-    capsuleDataSize[i * 2] = halfLen;
-    capsuleDataSize[i * 2 + 1] = radius;
-} else {
-    capsuleDataPos[i * 2] = -999.0;
-    capsuleDataPos[i * 2 + 1] = -999.0;
-    capsuleDataSize[i * 2] = 0.0;
-    capsuleDataSize[i * 2 + 1] = 0.0;
-}
-});
+            capsuleDataPos[i * 2] = cx;
+            capsuleDataPos[i * 2 + 1] = cy;
+            capsuleDataSize[i * 2] = halfLen;
+            capsuleDataSize[i * 2 + 1] = radius;
+        } else {
+            capsuleDataPos[i * 2] = -999.0;
+            capsuleDataPos[i * 2 + 1] = -999.0;
+            capsuleDataSize[i * 2] = 0.0;
+            capsuleDataSize[i * 2 + 1] = 0.0;
+        }
+    });
 
     gl.uniform2fv(uCapsulePosLoc, capsuleDataPos);
     gl.uniform2fv(uCapsuleSizeLoc, capsuleDataSize);
