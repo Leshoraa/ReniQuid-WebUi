@@ -373,7 +373,6 @@ function updateDOMTextTexture() {
         textCtx.stroke();
     };
 
-
     const elementsToDraw = document.querySelectorAll('.welcome-title, .welcome-subtitle, .welcome-hint, #showcase-title, #showcase-sub, .ui-label, .inspiration-title, .inspiration-sub');
     elementsToDraw.forEach(el => {
         if (el.id) drawText(el.id);
@@ -451,7 +450,6 @@ function updateSlider(e) {
     updateDOMTextTexture();
 }
 
-
 let switchAnimFrame;
 const animateTextureUpdate = (startTime) => {
     updateDOMTextTexture();
@@ -481,12 +479,11 @@ const targetPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 let isDragging = false;
 const updateTarget = (x, y) => { targetPos.x = x; targetPos.y = y; };
 
-// --- KONTROL INPUT POINTER (Mouse/Stylus) ---
-const DRAG_RADIUS = 130;
-const TOUCH_DRAG_RADIUS = 180; // Lebih besar untuk toleransi jari
+const DRAG_RADIUS = 300;
+const TOUCH_DRAG_RADIUS = 400;
 
 window.addEventListener('pointerdown', (e) => {
-    if (e.pointerType === 'touch') return; // Handled by touch events
+    if (e.pointerType === 'touch') return;
     const dx = e.clientX - points[0].x;
     const dy = e.clientY - points[0].y;
     if (Math.sqrt(dx * dx + dy * dy) < DRAG_RADIUS) {
@@ -497,9 +494,8 @@ window.addEventListener('pointerdown', (e) => {
 window.addEventListener('pointermove', (e) => { if (isDragging && e.pointerType !== 'touch') updateTarget(e.clientX, e.clientY); });
 window.addEventListener('pointerup', (e) => { if (e.pointerType !== 'touch') isDragging = false; });
 
-// --- KONTROL INPUT SENTUH (Touch) ---
 window.addEventListener('touchstart', (e) => {
-    const touch = e.changedTouches[0];
+    const touch = e.touches[0];
     const dx = touch.clientX - points[0].x;
     const dy = touch.clientY - points[0].y;
     if (Math.sqrt(dx * dx + dy * dy) < TOUCH_DRAG_RADIUS) {
@@ -514,7 +510,6 @@ window.addEventListener('touchmove', (e) => {
 }, { passive: false });
 window.addEventListener('touchend', () => { isDragging = false; });
 window.addEventListener('touchcancel', () => { isDragging = false; });
-// ---------------------------------------------------------------------------
 
 const keysPressed = {};
 window.addEventListener('keydown', (e) => {
@@ -536,7 +531,7 @@ let lastTime = performance.now();
 function updatePhysics(dt) {
     if (dt > 0.03) dt = 0.03;
 
-    const keyboardSpeed = 600.0;
+    const keyboardSpeed = 1200.0;
     if (keysPressed['w']) targetPos.y -= keyboardSpeed * dt;
     if (keysPressed['s']) targetPos.y += keyboardSpeed * dt;
     if (keysPressed['a']) targetPos.x -= keyboardSpeed * dt;
@@ -564,10 +559,17 @@ function updatePhysics(dt) {
     }
 }
 
+const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+const renderScale = isMobile ? 0.55 : 1.0; 
+
 function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    const winW = window.innerWidth;
+    const winH = window.innerHeight;
+    
+    canvas.width = winW * renderScale;
+    canvas.height = winH * renderScale;
     gl.viewport(0, 0, canvas.width, canvas.height);
+    
     updateDOMTextTexture();
 }
 window.addEventListener('resize', resize);
@@ -584,9 +586,12 @@ function renderLoop(time) {
 
     updatePhysics(dt);
 
+    const winW = window.innerWidth;
+    const winH = window.innerHeight;
+
     for (let i = 0; i < NUM_POINTS; i++) {
-        mappedPoints[i * 2] = ((points[i].x - 0.5 * canvas.width) / canvas.height) * 3.0;
-        mappedPoints[i * 2 + 1] = (((canvas.height - points[i].y) - 0.5 * canvas.height) / canvas.height) * 3.0;
+        mappedPoints[i * 2] = ((points[i].x - 0.5 * winW) / winH) * 3.0;
+        mappedPoints[i * 2 + 1] = (((winH - points[i].y) - 0.5 * winH) / winH) * 3.0;
     }
 
     gl.clearColor(0.0, 0.0, 0.0, 0.0);
@@ -594,36 +599,43 @@ function renderLoop(time) {
 
     gl.useProgram(program);
     gl.uniform2f(uResolutionLoc, canvas.width, canvas.height);
-    gl.uniform2fv(uPointsLoc, mappedPoints);
     gl.uniform1f(uTimeLoc, time * 0.001);
-    gl.uniform1f(uScrollYLoc, currentScrollY);
+    
+    gl.uniform1f(uScrollYLoc, currentScrollY * renderScale);
+    gl.uniform2fv(uPointsLoc, mappedPoints);
 
     for (let w = 0; w < 4; w++) uiWaves[w] *= 0.95;
     gl.uniform1fv(uUiWavesLoc, uiWaves);
 
-    let capsuleWidth = 0.25 * canvas.width;
-    let capsulePxX = 60.0 + capsuleWidth / 2.0;
-    let capsulePxY = 60.0;
+    const headerEl = document.getElementById('header-overlay');
+    if (headerEl) {
+        const headerRect = headerEl.getBoundingClientRect();
+        const hPadX = 25; 
+        const hPadY = 18;
+        const hCx = headerRect.left + headerRect.width / 2.0;
+        const hCy = headerRect.top + headerRect.height / 2.0;
 
-    let mapCapsuleX = ((capsulePxX - 0.5 * canvas.width) / canvas.height) * 3.0;
-    let mapCapsuleY = (((canvas.height - capsulePxY) - 0.5 * canvas.height) / canvas.height) * 3.0;
-    let mapCapsuleW = (capsuleWidth / canvas.height) * 3.0;
-    let mapCapsuleR = (34.0 / canvas.height) * 3.0;
+        let mapCapsuleX = ((hCx - 0.5 * winW) / winH) * 3.0;
+        let mapCapsuleY = (((winH - hCy) - 0.5 * winH) / winH) * 3.0;
+        
+        let hRadius = headerRect.height / 2.0 + hPadY;
+        let hHalfLen = Math.max(0, (headerRect.width + hPadX * 2.0) / 2.0 - hRadius);
 
-    capsuleDataPos[0] = mapCapsuleX + mapCapsuleW * 0.6;
-    capsuleDataPos[1] = mapCapsuleY;
-    capsuleDataSize[0] = mapCapsuleW * 1.0;
-    capsuleDataSize[1] = mapCapsuleR;
+        capsuleDataPos[0] = mapCapsuleX;
+        capsuleDataPos[1] = mapCapsuleY;
+        capsuleDataSize[0] = (hHalfLen / winH) * 3.0;
+        capsuleDataSize[1] = (hRadius / winH) * 3.0;
+    }
 
     const elements = [uiBtn, uiSwitch, uiSlider, uiIconBtn];
     elements.forEach((el, idx) => {
         const i = idx + 1;
         if (el) {
             const rect = el.getBoundingClientRect();
-            const cx = ((rect.left + rect.width / 2) - 0.5 * canvas.width) / canvas.height * 3.0;
-            const cy = (((canvas.height - (rect.top + rect.height / 2))) - 0.5 * canvas.height) / canvas.height * 3.0;
-            const halfLen = Math.max(0, (rect.width - rect.height) / 2) / canvas.height * 3.0;
-            const radius = (rect.height / 2) / canvas.height * 3.0;
+            const cx = ((rect.left + rect.width / 2) - 0.5 * winW) / winH * 3.0;
+            const cy = (((winH - (rect.top + rect.height / 2))) - 0.5 * winH) / winH * 3.0;
+            const halfLen = Math.max(0, (rect.width - rect.height) / 2) / winH * 3.0;
+            const radius = (rect.height / 2) / winH * 3.0;
 
             capsuleDataPos[i * 2] = cx;
             capsuleDataPos[i * 2 + 1] = cy;

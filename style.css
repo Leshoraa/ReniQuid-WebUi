@@ -106,7 +106,6 @@ body {
     font-weight: 300;
 }
 
-/* --- GAYA BARU UNTUK UI INTERAKTIF RENIQUID --- */
 .ui-components {
     display: flex;
     flex-wrap: wrap;
@@ -117,7 +116,7 @@ body {
     max-width: 800px;
     margin-left: auto;
     margin-right: auto;
-    pointer-events: auto; /* Agar bisa di-klik di bawah kanvas */
+    pointer-events: auto;
 }
 
 .ui-btn {
@@ -133,7 +132,6 @@ body {
     transition: all 0.3s ease;
 }
 
-/* Efek Hover: Berubah putih dan teks hitam */
 .ui-btn:hover {
     background-color: #ffffff;
     color: #000000;
@@ -162,7 +160,6 @@ body {
     transition: left 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-/* Saat Switch di-klik / Aktif */
 .ui-switch.active {
     background-color: rgba(255, 255, 255, 0.2);
 }
@@ -170,7 +167,6 @@ body {
     left: calc(100% - 32px);
 }
 
-/* --- Gaya Tambahan 6 Elemen UI --- */
 .ui-item {
     display: flex;
     flex-direction: column;
@@ -207,7 +203,6 @@ body {
     transform: translateY(-50%);
     pointer-events: none;
 }
-
 
 .ui-icon-btn {
     width: 65px;
@@ -276,7 +271,6 @@ body {
     opacity: 1;
 }
 
-/* --- GAYA UNTUK SECTION INSPIRATION --- */
 #inspiration-section {
     width: 100%;
     min-height: 100vh;
@@ -316,7 +310,7 @@ body {
     position: relative;
     z-index: 20;
     width: 100%;
-    padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+    padding-bottom: 56.25%; 
     border-radius: 16px;
     overflow: hidden;
     box-shadow: 0 20px 50px rgba(0,0,0,0.15);
@@ -330,4 +324,48 @@ body {
     width: 100%;
     height: 100%;
     border: none;
+}
+
+@media screen and (max-width: 768px) {
+    .welcome-title {
+        font-size: 3rem;
+        letter-spacing: 4px;
+        text-align: center;
+    }
+    .welcome-subtitle {
+        font-size: 0.8rem;
+        letter-spacing: 2px;
+        text-align: center;
+    }
+    .welcome-hint {
+        font-size: 0.6rem;
+        width: 100%;
+        text-align: center;
+    }
+    .showcase-content h2, .inspiration-title {
+        font-size: 2.5rem;
+        letter-spacing: 3px;
+    }
+    .showcase-content p, .inspiration-sub {
+        font-size: 1rem;
+        padding: 0 20px;
+    }
+    #header-overlay {
+        top: 20px;
+        left: 20px;
+        width: max-content; 
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+        transform: none;
+    }
+    .header-nav {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    .ui-components {
+        flex-direction: column;
+        gap: 25px;
+        margin-top: 30px;
+    }
 }
