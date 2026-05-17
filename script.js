@@ -633,31 +633,30 @@ function renderLoop(time) {
     }
 
     const elements = [uiBtn, uiSwitch, uiSlider, uiIconBtn];
-    elements.forEach((el, idx) => {
-        const i = idx + 1;
-        if (el) {
-            const rect = el.getBoundingClientRect();
-            const cx = ((rect.left + rect.width / 2) - 0.5 * winW) / winH * 3.0;
-            const cy = (((winH - (rect.top + rect.height / 2))) - 0.5 * winH) / winH * 3.0;
-            const halfLen = Math.max(0, (rect.width - rect.height) / 2) / winH * 3.0;
-            const radius = (rect.height / 2) / winH * 3.0;
+elements.forEach((el, idx) => {
+const i = idx + 1;
+if (el) {
+    const rect = el.getBoundingClientRect();
+    const cx = ((rect.left + rect.width / 2) - 0.5 * winW) / winH * 3.0;
+    const cy = (((winH - (rect.top + rect.height / 2))) - 0.5 * winH) / winH * 3.0;
+    let halfLen = Math.max(0, (rect.width - rect.height) / 2) / winH * 3.0;
+    let radius = (rect.height / 2) / winH * 3
 
-            if (isMobile && i === 1) {
-                halfLen *= 0.75; // Skala panjang (ubah 0.75 sesuai selera, misal 75% dari ukuran asli)
-                radius *= 0.75;  // Skala ketebalan
-            }
-            
-            capsuleDataPos[i * 2] = cx;
-            capsuleDataPos[i * 2 + 1] = cy;
-            capsuleDataSize[i * 2] = halfLen;
-            capsuleDataSize[i * 2 + 1] = radius;
-        } else {
-            capsuleDataPos[i * 2] = -999.0;
-            capsuleDataPos[i * 2 + 1] = -999.0;
-            capsuleDataSize[i * 2] = 0.0;
-            capsuleDataSize[i * 2 + 1] = 0.0;
-        }
-    });
+    if (isMobile && i === 1) {
+        halfLen *= 0.55;
+        radius *= 0.55;
+    }
+    capsuleDataPos[i * 2] = cx;
+    capsuleDataPos[i * 2 + 1] = cy;
+    capsuleDataSize[i * 2] = halfLen;
+    capsuleDataSize[i * 2 + 1] = radius;
+} else {
+    capsuleDataPos[i * 2] = -999.0;
+    capsuleDataPos[i * 2 + 1] = -999.0;
+    capsuleDataSize[i * 2] = 0.0;
+    capsuleDataSize[i * 2 + 1] = 0.0;
+}
+});
 
     gl.uniform2fv(uCapsulePosLoc, capsuleDataPos);
     gl.uniform2fv(uCapsuleSizeLoc, capsuleDataSize);
