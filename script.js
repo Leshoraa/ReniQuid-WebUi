@@ -568,6 +568,9 @@ function resize() {
     const winW = window.innerWidth;
     const winH = window.innerHeight;
     
+    canvas.style.width = winW + 'px';
+    canvas.style.height = winH + 'px';
+    
     canvas.width = winW * renderScale;
     canvas.height = winH * renderScale;
     gl.viewport(0, 0, canvas.width, canvas.height);
