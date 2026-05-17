@@ -309,6 +309,7 @@ function updateDOMTextTexture() {
         const rect = el.getBoundingClientRect();
         const style = window.getComputedStyle(el);
         textCtx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        textCtx.letterSpacing = style.letterSpacing; // <-- TAMBAHKAN BARIS INI
         textCtx.fillStyle = style.color;
         textCtx.textAlign = 'center';
         textCtx.textBaseline = 'middle';
@@ -325,6 +326,7 @@ function updateDOMTextTexture() {
 
         if (el.textContent.trim()) {
             textCtx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+            textCtx.letterSpacing = style.letterSpacing; // <-- TAMBAHKAN BARIS INI JUGA
             textCtx.fillStyle = '#ffffff';
             textCtx.textAlign = 'center';
             textCtx.textBaseline = 'middle';
